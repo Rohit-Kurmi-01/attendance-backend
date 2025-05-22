@@ -6,24 +6,48 @@ const msg_success = "successfully";
 const msg_fail = "fail";
 
 module.exports.controller = (app, io, socket_list) => {
-
     const msg_invalidUser = "invalid username and password";
-
     const msg_category_added = "Category added Successfully.";
     const msg_category_update = "Category updated Successfully.";
     const msg_category_delete = "Category deleted Successfully.";
     const msg_already_register = "This email already register ";
-
-    const msg_product_added = "Product added Successfully.";
+    const msg_product_added = "Docter added Successfully.";
     const msg_product_update = "Product updated Successfully.";
     const msg_product_delete = "Product deleted Successfully.";
 
+
+    function checkAccessToken(headerObj, res, callback, require_type = "") {
+        helper.Dlog(headerObj.access_token);
+        helper.CheckParameterValid(res, headerObj, ["access_token"], () => {
+            db.query("SELECT `hospital_id`, `hospital_name`, `user_type`, `hospital_address`, `hospital_number`, `hospital_password`, `auth_token`, `hospital_resgstrion`,  `auth_token`, `status` FROM `hospital_admin` WHERE `auth_token` = ? AND `status` = ? ", [headerObj.access_token, "1"], (err, result) => {
+                if (err) {
+                    helper.ThrowHtmlError(err, res);
+                    return
+                }
+                helper.Dlog(result);
+                if (result.length > 0) {
+                    if (require_type != "") {
+                        if (require_type == result[0].user_type) {
+                            return callback(result[0]);
+                        } else {
+                            res.json({ "status": "0", "code": "404", "message": "Access denied. Unauthorized user access." })
+                        }
+                    } else {
+                        return callback(result[0]);
+                    }
+                } else {
+                    res.json({ "status": "0", "code": "404", "message": "Access denied. Unauthorized user access." })
+                }
+            })
+        })
+
+    }
 
     app.post('/api/hospital/sign_up', (req, res) => {
         helper.Dlog(req.body);
         var reqObj = req.body;
 
-        helper.CheckParameterValid(res, reqObj, ["hospital_name", "hospital_address", "hospital_number", "hospital_password", "hospital_email","hospital_resgstrion","hospital_gst","status"], () => {
+        helper.CheckParameterValid(res, reqObj, ["hospital_name", "hospital_address", "hospital_number", "hospital_password", "hospital_email", "hospital_resgstrion", "hospital_gst", "status"], () => {
 
             db.query('SELECT `hospital_id`, `status` FROM `hospital_admin` WHERE `hospital_email` = ? ', [reqObj.hospital_email], (err, result) => {
 
@@ -38,30 +62,30 @@ module.exports.controller = (app, io, socket_list) => {
 
                     var auth_token = helper.createRequestToken();
                     db.query("INSERT INTO `hospital_admin`( `hospital_name`, `hospital_address`, `hospital_number`,`hospital_password` ,`auth_token`, `hospital_email`, `hospital_resgstrion`, `hospital_gst`, `status`, `created_date`, `modify_date`) VALUES (?,?,?, ?,?,?,?,?,?, NOW(), NOW())",
-                         [reqObj.hospital_name, reqObj.hospital_address, reqObj.hospital_number, reqObj.hospital_password, auth_token, reqObj.hospital_email, reqObj.hospital_resgstrion,reqObj.hospital_gst,reqObj.status,] , (err, result) => {
-                        if (err) {
-                            helper.ThrowHtmlError(err, res);
-                            return
-                        }
+                        [reqObj.hospital_name, reqObj.hospital_address, reqObj.hospital_number, reqObj.hospital_password, auth_token, reqObj.hospital_email, reqObj.hospital_resgstrion, reqObj.hospital_gst, reqObj.status,], (err, result) => {
+                            if (err) {
+                                helper.ThrowHtmlError(err, res);
+                                return
+                            }
 
-                        if (result) {
-                             db.query('SELECT `hospital_id`, `hospital_name`, `hospital_address`, `hospital_email`  FROM `hospital_admin` WHERE `hospital_id` = ? AND `status` = "1" ', [result.insertId], (err, result) => {
+                            if (result) {
+                                db.query('SELECT `hospital_id`, `hospital_name`, `hospital_address`, `hospital_email`  FROM `hospital_admin` WHERE `hospital_id` = ? AND `status` = "1" ', [result.insertId], (err, result) => {
 
-                                if (err) {
-                                    helper.ThrowHtmlError(err, res);
-                                    return
-                                }
+                                    if (err) {
+                                        helper.ThrowHtmlError(err, res);
+                                        return
+                                    }
 
-                                if (result.length > 0) {
-                                    res.json({ "status": "1", "payload": result[0], "message": msg_success })
-                                } else {
-                                    res.json({ "status": "0", "message": msg_invalidUser })
-                                }
-                            })
-                        } else {
-                            res.json({ "status": "0", "message": msg_fail })
-                        }
-                    })
+                                    if (result.length > 0) {
+                                        res.json({ "status": "1", "payload": result[0], "message": msg_success })
+                                    } else {
+                                        res.json({ "status": "0", "message": msg_invalidUser })
+                                    }
+                                })
+                            } else {
+                                res.json({ "status": "0", "message": msg_fail })
+                            }
+                        })
 
                 }
             })
@@ -75,8 +99,7 @@ module.exports.controller = (app, io, socket_list) => {
         helper.CheckParameterValid(res, reqObj, ["hospital_email", "hospital_password"], () => {
 
             var authToken = helper.createRequestToken();
-            db.query("UPDATE `hospital_admin` SET `auth_token` = ?,  `modify_date` = NOW() WHERE `user_type` = ? AND `hospital_email` = ? AND `hospital_password` = ? AND `status` = ? ", [authToken,  "1", reqObj.hospital_email, reqObj.hospital_password, "1"], (err, result) => {
-                    console.log(result)
+            db.query("UPDATE `hospital_admin` SET `auth_token` = ?,  `modify_date` = NOW() WHERE `user_type` = ? AND `hospital_email` = ? AND `hospital_password` = ? AND `status` = ? ", [authToken, "1", reqObj.hospital_email, reqObj.hospital_password, "1"], (err, result) => {
                 if (err) {
                     helper.ThrowHtmlError(err, res);
                     return
@@ -120,6 +143,53 @@ module.exports.controller = (app, io, socket_list) => {
         })
     })
 
+    app.get('/api/hospital/docters', (req, res) => {
+        helper.Dlog(req.headers)
+        checkAccessToken(req.headers, res, (userObj) => {
+            console.log(res)
+            db.query("SELECT * FROM `docters` ", [], (err, result) => {
+                if (err) {
+                    helper.ThrowHtmlError(err, res);
+                    return
+                }
+                res.json({
+                    "status": "1",
+                    "payload": result,
+                    "message": msg_success
+                });
+            });
+        }, '1')
+    });
+
+
+
+    app.post("/api/hospital/docter_add", (req, res) => {
+        checkAccessToken(req.headers, res, (uObj) => {
+            console.log(uObj)
+            var reqObj = req.body;
+            helper.Dlog("---------- Parameter ----")
+            helper.Dlog(reqObj)
+            helper.CheckParameterValid(res, reqObj, ["dr_name", "dr_phoneno", "dr_email", "dr_gender", "dr_department", "dr_education", "dr_experience", "dr_designation", "dr_doctorTiming"], () => {
+                db.query("INSERT INTO `docters`(`dr_name`, `dr_phoneno`, `dr_email`, `dr_gender`, `dr_department`, `dr_education`, `dr_experience`, `dr_designation`, `dr_doctorTiming`, `hospital_id`,`created_date`, `modify_date`) VALUES (?,?,?, ?,?,?,?, ?,?,?, NOW(), NOW() ) ",
+                     [reqObj.dr_name, reqObj.dr_phoneno, reqObj.dr_email, reqObj.dr_gender, reqObj.dr_department, reqObj.dr_education, reqObj.dr_experience, reqObj.dr_designation, reqObj.dr_doctorTiming, uObj.hospital_id], (err, result) => {
+                    if (err) {
+                        helper.ThrowHtmlError(err, res);
+                        return
+                    }
+                    if (result) {
+
+                        res.json({
+                            "status": "1", "message": msg_product_added
+                        });
+
+                    } else {
+                        res.json({ "status": "0", "message": msg_fail })
+                    }
+                })
+            })
+
+        })
+    })
 
 
 
@@ -133,26 +203,27 @@ module.exports.controller = (app, io, socket_list) => {
 
 
 
-  app.get('/api/admin/getAllTotals/:user_id', (req, res) => {
+
+    app.get('/api/admin/getAllTotals/:user_id', (req, res) => {
         var userid = req.params.user_id;
         console.log(userid)
         db.query('SELECT count(*) as total  FROM  user_detail ', (err, result1) => {
             db.query('SELECT count(*) as total  FROM user_order', (err, result2) => {
-                db.query('SELECT count(*) as total  FROM product_detail  ',(err, result3) => {
-                            if (err) throw err;
-                            var results = [];
-                            results.push({
-                                'Users': result1[0].total,
-                                'Orders': result2[0].total,
-                                'product_detail': result3[0].total,
-                            });
-                            res.json({
-                                status: true,
-                                data: results,
-                                message: 'Total'
-                            });
-                        });
-              
+                db.query('SELECT count(*) as total  FROM product_detail  ', (err, result3) => {
+                    if (err) throw err;
+                    var results = [];
+                    results.push({
+                        'Users': result1[0].total,
+                        'Orders': result2[0].total,
+                        'product_detail': result3[0].total,
+                    });
+                    res.json({
+                        status: true,
+                        data: results,
+                        message: 'Total'
+                    });
+                });
+
             });
         });
     });
@@ -180,16 +251,16 @@ module.exports.controller = (app, io, socket_list) => {
 
 
     app.get('/api/get_monthly_data', (req, res) => {
-         var year ='2025'
-        let sql =  `(SELECT Date_format(created_date, '%M') AS label, Sum(total_amt) AS y FROM user_order WHERE Year(created_date) = ${year} )`;
+        var year = '2025'
+        let sql = `(SELECT Date_format(created_date, '%M') AS label, Sum(total_amt) AS y FROM user_order WHERE Year(created_date) = ${year} )`;
         // var sql1 = 'SELECT * FROM users WHERE email = ? OR phone_number = ?';
-        db.query(sql,(err, result) => {
+        db.query(sql, (err, result) => {
             if (err) throw err;
             res.end(JSON.stringify(result));
         })
-    
+
     })
-    
+
 
     app.delete('/api/admin/delete_user/:id', (req, res) => {
         db.query('DELETE FROM user_detail WHERE user_id=?', [req.params.id], (err, rows, fields) => {
@@ -203,90 +274,44 @@ module.exports.controller = (app, io, socket_list) => {
             }
         });
     });
-        app.post('/api/admin/update_profile', (req, res) => {
-            helper.Dlog(req.body);
-            var reqObj = req.body
-        
-            // checkAccessToken(req.headers, res, (userObj) => {
-                helper.CheckParameterValid(res, reqObj, ["username", "name", "mobile", "mobile_code",'email'], () => {
-                    db.query("UPDATE `user_detail` SET `username`=?,`name`=?,`mobile`=?,`mobile_code`=?, `email`=?, `modify_date`=NOW() WHERE `user_id` = ? AND `status` = 1", [reqObj.username, reqObj.name, reqObj.mobile, reqObj.mobile_code,reqObj.email, reqObj.user_id], (err, result) => {
-                        if (err) {
-                            helper.ThrowHtmlError(err, res)
-                            return
-                        }
-        
-                        if (result.affectedRows > 0) {
-                            db.query('SELECT `user_id`, `username`, `name`, `email`, `mobile`, `mobile_code`, `password`, `auth_token`, `status`, `created_date` FROM `user_detail` WHERE `user_id` = ? AND `status` = "1" ', [reqObj.user_id], (err, result) => {
-        
-                                if (err) {
-                                    helper.ThrowHtmlError(err, res);
-                                    return
-                                }
-        
-                                if (result.length > 0) {
-                                    res.json({ "status": "1", "payload": result[0], "message": msg_success })
-                                } else {
-                                    res.json({ "status": "0", "message": msg_invalidUser })
-                                }
-                            })
-                        } else {
-                            res.json({
-                                "status": "0",
-                                "message": msg_fail
-                            })
-                        }
-                    })
-                })
-        
-            // })
-        })
-
-    app.post('/api/admin/login', (req, res) => {
+    app.post('/api/admin/update_profile', (req, res) => {
         helper.Dlog(req.body);
-        var reqObj = req.body;
-        helper.CheckParameterValid(res, reqObj, ["email", "password", "dervice_token"], () => {
+        var reqObj = req.body
 
-            var authToken = helper.createRequestToken();
-            db.query("UPDATE `user_detail` SET `auth_token` = ?, `dervice_token` = ?, `modify_date` = NOW() WHERE `user_type` = ? AND `email` = ? AND `password` = ? AND `status` = ? ", [authToken, reqObj.dervice_token, "2", reqObj.email, reqObj.password, "1"], (err, result) => {
-
+        // checkAccessToken(req.headers, res, (userObj) => {
+        helper.CheckParameterValid(res, reqObj, ["username", "name", "mobile", "mobile_code", 'email'], () => {
+            db.query("UPDATE `user_detail` SET `username`=?,`name`=?,`mobile`=?,`mobile_code`=?, `email`=?, `modify_date`=NOW() WHERE `user_id` = ? AND `status` = 1", [reqObj.username, reqObj.name, reqObj.mobile, reqObj.mobile_code, reqObj.email, reqObj.user_id], (err, result) => {
                 if (err) {
-                    helper.ThrowHtmlError(err, res);
+                    helper.ThrowHtmlError(err, res)
                     return
                 }
 
                 if (result.affectedRows > 0) {
+                    db.query('SELECT `user_id`, `username`, `name`, `email`, `mobile`, `mobile_code`, `password`, `auth_token`, `status`, `created_date` FROM `user_detail` WHERE `user_id` = ? AND `status` = "1" ', [reqObj.user_id], (err, result) => {
 
-                    db.query('SELECT `user_id`, `username`, `name`, `email`, `mobile`, `mobile_code`, `auth_token`, `created_date` FROM `user_detail` WHERE `email` = ? AND `password` = ? AND `status` = "1" ', [reqObj.email, reqObj.password], (err, result) => {
                         if (err) {
                             helper.ThrowHtmlError(err, res);
                             return
                         }
 
                         if (result.length > 0) {
-                            res.json({
-                                'status': '1',
-                                'payload': result[0],
-                                'message': msg_success
-                            })
+                            res.json({ "status": "1", "payload": result[0], "message": msg_success })
                         } else {
-                            res.json({
-                                'status': '0',
-                                'message': msg_invalidUser
-                            })
+                            res.json({ "status": "0", "message": msg_invalidUser })
                         }
-
-
                     })
-
                 } else {
                     res.json({
-                        'status': '0',
-                        'message': msg_invalidUser
+                        "status": "0",
+                        "message": msg_fail
                     })
                 }
             })
         })
+
+        // })
     })
+
 
 
 
@@ -1032,32 +1057,5 @@ module.exports.controller = (app, io, socket_list) => {
 
     // =========================================================================================================================================
 
-    function checkAccessToken(headerObj, res, callback, require_type = "") {
-        helper.Dlog(headerObj.access_token);
-        helper.CheckParameterValid(res, headerObj, ["access_token"], () => {
-            db.query("SELECT `user_id`, `username`, `user_type`, `name`, `email`, `mobile`, `mobile_code`,  `auth_token`, `dervice_token`, `status` FROM `user_detail` WHERE `auth_token` = ? AND `status` = ? ", [headerObj.access_token, "1"], (err, result) => {
-                if (err) {
-                    helper.ThrowHtmlError(err, res);
-                    return
-                }
 
-                helper.Dlog(result);
-
-                if (result.length > 0) {
-                    if (require_type != "") {
-                        if (require_type == result[0].user_type) {
-                            return callback(result[0]);
-                        } else {
-                            res.json({ "status": "0", "code": "404", "message": "Access denied. Unauthorized user access." })
-                        }
-                    } else {
-                        return callback(result[0]);
-                    }
-                } else {
-                    res.json({ "status": "0", "code": "404", "message": "Access denied. Unauthorized user access." })
-                }
-            })
-        })
-
-    }
 }
