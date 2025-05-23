@@ -168,9 +168,9 @@ module.exports.controller = (app, io, socket_list) => {
             var reqObj = req.body;
             helper.Dlog("---------- Parameter ----")
             helper.Dlog(reqObj)
-            helper.CheckParameterValid(res, reqObj, ["dr_name", "dr_phoneno", "dr_email", "dr_gender", "dr_department", "dr_education", "dr_experience", "dr_designation", "dr_doctorTiming","dr_specialization"], () => {
+            helper.CheckParameterValid(res, reqObj, ["dr_name", "dr_phoneno", "dr_email", "dr_gender", "dr_department", "dr_education", "dr_experience", "dr_designation", "dr_doctorTiming", "dr_specialization"], () => {
                 db.query("INSERT INTO `docters`(`dr_name`, `dr_phoneno`, `dr_email`, `dr_gender`, `dr_department`, `dr_education`, `dr_experience`, `dr_designation`, `dr_doctorTiming`, `hospital_id`,`dr_specialization`, `created_date`, `modify_date`) VALUES (?,?,?, ?,?,?,?,?, ?,?,?, NOW(), NOW() ) ",
-                    [reqObj.dr_name, reqObj.dr_phoneno, reqObj.dr_email, reqObj.dr_gender, reqObj.dr_department, reqObj.dr_education, reqObj.dr_experience, reqObj.dr_designation, reqObj.dr_doctorTiming, uObj.hospital_id,reqObj.dr_specialization], (err, result) => {
+                    [reqObj.dr_name, reqObj.dr_phoneno, reqObj.dr_email, reqObj.dr_gender, reqObj.dr_department, reqObj.dr_education, reqObj.dr_experience, reqObj.dr_designation, reqObj.dr_doctorTiming, uObj.hospital_id, reqObj.dr_specialization], (err, result) => {
                         if (err) {
                             helper.ThrowHtmlError(err, res);
                             return
@@ -214,7 +214,7 @@ module.exports.controller = (app, io, socket_list) => {
             helper.Dlog("---------- Parameter ----")
             helper.Dlog(reqObj)
             helper.CheckParameterValid(res, reqObj, [
-                "dr_id", "dr_name", "dr_phoneno", "dr_email", "dr_gender", "dr_department", "dr_education", "dr_experience", "dr_designation", "dr_doctorTiming","dr_specialization"
+                "dr_id", "dr_name", "dr_phoneno", "dr_email", "dr_gender", "dr_department", "dr_education", "dr_experience", "dr_designation", "dr_doctorTiming", "dr_specialization"
             ], () => {
                 db.query(
                     "UPDATE `docters` SET `dr_name`=?, `dr_phoneno`=?, `dr_email`=?, `dr_gender`=?, `dr_department`=?, `dr_education`=?, `dr_experience`=?, `dr_designation`=?, `dr_doctorTiming`=?,  `dr_specialization`=?, `modify_date`=NOW() WHERE `dr_id`=? AND `hospital_id`=?",
@@ -252,122 +252,122 @@ module.exports.controller = (app, io, socket_list) => {
     });
 
     app.get('/api/hospital/patients', (req, res) => {
-    helper.Dlog(req.headers);
-    checkAccessToken(req.headers, res, (userObj) => {
-        db.query("SELECT * FROM `add_patients`", [], (err, result) => {
-            if (err) {
-                helper.ThrowHtmlError(err, res);
-                return;
-            }
-            res.json({
-                status: "1",
-                payload: result,
-                message: msg_success
+        helper.Dlog(req.headers);
+        checkAccessToken(req.headers, res, (userObj) => {
+            db.query("SELECT * FROM `add_patients`", [], (err, result) => {
+                if (err) {
+                    helper.ThrowHtmlError(err, res);
+                    return;
+                }
+                res.json({
+                    status: "1",
+                    payload: result,
+                    message: msg_success
+                });
             });
-        });
-    }, '1');
-});
+        }, '1');
+    });
 
 
 
     app.post("/api/hospital/patient_add", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-        console.log(uObj);
-        var reqObj = req.body;
-        helper.Dlog("---------- Parameter ----");
-        helper.Dlog(reqObj);
+        checkAccessToken(req.headers, res, (uObj) => {
+            console.log(uObj);
+            var reqObj = req.body;
+            helper.Dlog("---------- Parameter ----");
+            helper.Dlog(reqObj);
 
-        helper.CheckParameterValid(res, reqObj, [
-            "p_name", "p_bloodgroup", "p_dob", "p_phone", "p_email", "p_symptoms", "p_gender"
-        ], () => {
-            db.query(
-                "INSERT INTO `add_patients`(`p_name`, `p_bloodgroup`, `p_dob`, `p_phone`, `p_email`, `p_symptoms`, `p_gender`, `created_date`, `modify_date`) VALUES (?,?,?,?,?,?,?, NOW(), NOW())",
-                [
-                    reqObj.p_name,
-                    reqObj.p_bloodgroup,
-                    reqObj.p_dob,
-                    reqObj.p_phone,
-                    reqObj.p_email,
-                    reqObj.p_symptoms,
-                    reqObj.p_gender
-                ],
-                (err, result) => {
-                    if (err) {
-                        helper.ThrowHtmlError(err, res);
-                        return;
+            helper.CheckParameterValid(res, reqObj, [
+                "p_name", "p_bloodgroup", "p_dob", "p_phone", "p_email", "p_symptoms", "p_gender"
+            ], () => {
+                db.query(
+                    "INSERT INTO `add_patients`(`p_name`, `p_bloodgroup`, `p_dob`, `p_phone`, `p_email`, `p_symptoms`, `p_gender`, `created_date`, `modify_date`) VALUES (?,?,?,?,?,?,?, NOW(), NOW())",
+                    [
+                        reqObj.p_name,
+                        reqObj.p_bloodgroup,
+                        reqObj.p_dob,
+                        reqObj.p_phone,
+                        reqObj.p_email,
+                        reqObj.p_symptoms,
+                        reqObj.p_gender
+                    ],
+                    (err, result) => {
+                        if (err) {
+                            helper.ThrowHtmlError(err, res);
+                            return;
+                        }
+                        if (result) {
+                            res.json({
+                                "status": "1",
+                                "message": "Patient added successfully"
+                            });
+                        } else {
+                            res.json({
+                                "status": "0",
+                                "message": "Failed to add patient"
+                            });
+                        }
                     }
-                    if (result) {
-                        res.json({
-                            "status": "1",
-                            "message": "Patient added successfully"
-                        });
-                    } else {
-                        res.json({
-                            "status": "0",
-                            "message": "Failed to add patient"
-                        });
-                    }
+                );
+            });
+        });
+    });
+
+    app.delete('/api/hospital/patient_delete/:id', (req, res) => {
+        checkAccessToken(req.headers, res, (uObj) => {
+            db.query('DELETE FROM add_patients WHERE p_id = ?', [req.params.id], (err, rows) => {
+                if (!err) {
+                    res.json({
+                        status: true,
+                        message: 'Patient deleted Successfully'
+                    });
+                } else {
+                    console.log(err);
+                    helper.ThrowHtmlError(err, res);
                 }
-            );
+            });
         });
     });
-});
 
-app.delete('/api/hospital/patient_delete/:id', (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-        db.query('DELETE FROM add_patients WHERE p_id = ?', [req.params.id], (err, rows) => {
-            if (!err) {
-                res.json({
-                    status: true,
-                    message: 'Patient deleted Successfully'
-                });
-            } else {
-                console.log(err);
-                helper.ThrowHtmlError(err, res);
-            }
-        });
-    });
-});
+    app.put("/api/hospital/patient_update", (req, res) => {
+        checkAccessToken(req.headers, res, (uObj) => {
+            var reqObj = req.body;
+            helper.Dlog("---------- Parameter ----");
+            helper.Dlog(reqObj);
 
-app.put("/api/hospital/patient_update", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-        var reqObj = req.body;
-        helper.Dlog("---------- Parameter ----");
-        helper.Dlog(reqObj);
-
-        helper.CheckParameterValid(res, reqObj, [
-            "p_id", "p_name", "p_bloodgroup", "p_dob", "p_phone", "p_email", "p_symptoms", "p_gender"
-        ], () => {
-            db.query(
-                "UPDATE `add_patients` SET `p_name`=?, `p_bloodgroup`=?, `p_dob`=?, `p_phone`=?, `p_email`=?, `p_symptoms`=?, `p_gender`=?, `modify_date`=NOW() WHERE `p_id`=?",
-                [
-                    reqObj.p_name,
-                    reqObj.p_bloodgroup,
-                    reqObj.p_dob,
-                    reqObj.p_phone,
-                    reqObj.p_email,
-                    reqObj.p_symptoms,
-                    reqObj.p_gender,
-                    reqObj.p_id
-                ],
-                (err, result) => {
-                    if (err) {
-                        helper.ThrowHtmlError(err, res);
-                        return;
+            helper.CheckParameterValid(res, reqObj, [
+                "p_id", "p_name", "p_bloodgroup", "p_dob", "p_phone", "p_email", "p_symptoms", "p_gender"
+            ], () => {
+                db.query(
+                    "UPDATE `add_patients` SET `p_name`=?, `p_bloodgroup`=?, `p_dob`=?, `p_phone`=?, `p_email`=?, `p_symptoms`=?, `p_gender`=?, `modify_date`=NOW() WHERE `p_id`=?",
+                    [
+                        reqObj.p_name,
+                        reqObj.p_bloodgroup,
+                        reqObj.p_dob,
+                        reqObj.p_phone,
+                        reqObj.p_email,
+                        reqObj.p_symptoms,
+                        reqObj.p_gender,
+                        reqObj.p_id
+                    ],
+                    (err, result) => {
+                        if (err) {
+                            helper.ThrowHtmlError(err, res);
+                            return;
+                        }
+                        if (result.affectedRows > 0) {
+                            res.json({
+                                status: "1",
+                                message: "Patient updated Successfully."
+                            });
+                        } else {
+                            res.json({ status: "0", message: msg_fail });
+                        }
                     }
-                    if (result.affectedRows > 0) {
-                        res.json({
-                            status: "1",
-                            message: "Patient updated Successfully."
-                        });
-                    } else {
-                        res.json({ status: "0", message: msg_fail });
-                    }
-                }
-            );
+                );
+            });
         });
     });
-});
 
 
 
