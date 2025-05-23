@@ -162,30 +162,29 @@ module.exports.controller = (app, io, socket_list) => {
     });
 
 
-
     app.post("/api/hospital/docter_add", (req, res) => {
         checkAccessToken(req.headers, res, (uObj) => {
             console.log(uObj)
             var reqObj = req.body;
             helper.Dlog("---------- Parameter ----")
             helper.Dlog(reqObj)
-            helper.CheckParameterValid(res, reqObj, ["dr_name", "dr_phoneno", "dr_email", "dr_gender", "dr_department", "dr_education", "dr_experience", "dr_designation", "dr_doctorTiming"], () => {
-                db.query("INSERT INTO `docters`(`dr_name`, `dr_phoneno`, `dr_email`, `dr_gender`, `dr_department`, `dr_education`, `dr_experience`, `dr_designation`, `dr_doctorTiming`, `hospital_id`,`created_date`, `modify_date`) VALUES (?,?,?, ?,?,?,?, ?,?,?, NOW(), NOW() ) ",
-                     [reqObj.dr_name, reqObj.dr_phoneno, reqObj.dr_email, reqObj.dr_gender, reqObj.dr_department, reqObj.dr_education, reqObj.dr_experience, reqObj.dr_designation, reqObj.dr_doctorTiming, uObj.hospital_id], (err, result) => {
-                    if (err) {
-                        helper.ThrowHtmlError(err, res);
-                        return
-                    }
-                    if (result) {
+            helper.CheckParameterValid(res, reqObj, ["dr_name", "dr_phoneno", "dr_email", "dr_gender", "dr_department", "dr_education", "dr_experience", "dr_designation", "dr_doctorTiming","dr_specialization"], () => {
+                db.query("INSERT INTO `docters`(`dr_name`, `dr_phoneno`, `dr_email`, `dr_gender`, `dr_department`, `dr_education`, `dr_experience`, `dr_designation`, `dr_doctorTiming`, `hospital_id`,`dr_specialization`, `created_date`, `modify_date`) VALUES (?,?,?, ?,?,?,?,?, ?,?,?, NOW(), NOW() ) ",
+                    [reqObj.dr_name, reqObj.dr_phoneno, reqObj.dr_email, reqObj.dr_gender, reqObj.dr_department, reqObj.dr_education, reqObj.dr_experience, reqObj.dr_designation, reqObj.dr_doctorTiming, uObj.hospital_id,reqObj.dr_specialization], (err, result) => {
+                        if (err) {
+                            helper.ThrowHtmlError(err, res);
+                            return
+                        }
+                        if (result) {
 
-                        res.json({
-                            "status": "1", "message": msg_product_added
-                        });
+                            res.json({
+                                "status": "1", "message": msg_product_added
+                            });
 
-                    } else {
-                        res.json({ "status": "0", "message": msg_fail })
-                    }
-                })
+                        } else {
+                            res.json({ "status": "0", "message": msg_fail })
+                        }
+                    })
             })
 
         })
@@ -193,9 +192,64 @@ module.exports.controller = (app, io, socket_list) => {
 
 
 
+    app.delete('/api/hospital/docter_delete/:id', (req, res) => {
+        console.log(req.params.id)
+        checkAccessToken(req.headers, res, (uObj) => {
+            db.query('DELETE FROM docters WHERE dr_id=?', [req.params.id], (err, rows, fields) => {
+                if (!err) {
+                    res.json({
+                        status: true,
+                        message: 'Docter deleted Successfully'
+                    })
+                } else {
+                    console.log(err)
+                }
+            });
+        });
+    });
 
-
-
+    app.put("/api/hospital/docter_update", (req, res) => {
+        checkAccessToken(req.headers, res, (uObj) => {
+            var reqObj = req.body;
+            helper.Dlog("---------- Parameter ----")
+            helper.Dlog(reqObj)
+            helper.CheckParameterValid(res, reqObj, [
+                "dr_id", "dr_name", "dr_phoneno", "dr_email", "dr_gender", "dr_department", "dr_education", "dr_experience", "dr_designation", "dr_doctorTiming","dr_specialization"
+            ], () => {
+                db.query(
+                    "UPDATE `docters` SET `dr_name`=?, `dr_phoneno`=?, `dr_email`=?, `dr_gender`=?, `dr_department`=?, `dr_education`=?, `dr_experience`=?, `dr_designation`=?, `dr_doctorTiming`=?,  `dr_specialization`=?, `modify_date`=NOW() WHERE `dr_id`=? AND `hospital_id`=?",
+                    [
+                        reqObj.dr_name,
+                        reqObj.dr_phoneno,
+                        reqObj.dr_email,
+                        reqObj.dr_gender,
+                        reqObj.dr_department,
+                        reqObj.dr_education,
+                        reqObj.dr_experience,
+                        reqObj.dr_designation,
+                        reqObj.dr_doctorTiming,
+                        reqObj.dr_specialization,
+                        reqObj.dr_id,
+                        uObj.hospital_id
+                    ],
+                    (err, result) => {
+                        if (err) {
+                            helper.ThrowHtmlError(err, res);
+                            return;
+                        }
+                        if (result.affectedRows > 0) {
+                            res.json({
+                                "status": "1",
+                                "message": "Docter updated Successfully."
+                            });
+                        } else {
+                            res.json({ "status": "0", "message": msg_fail });
+                        }
+                    }
+                );
+            });
+        });
+    });
 
 
 
