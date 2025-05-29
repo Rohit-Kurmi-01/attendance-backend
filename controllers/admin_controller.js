@@ -522,9 +522,7 @@ module.exports.controller = (app, io, socket_list) => {
           "patientName",
           "title",
           "location",
-          "fromDate",
-          "toDate",
-          "fromDate",
+          "appointmentTime",
           "department",
           "consultation",
           "symptom",
@@ -532,13 +530,13 @@ module.exports.controller = (app, io, socket_list) => {
         ],
         () => {
           db.query(
-            "INSERT INTO `patient_appoinment`( `patientName`, `title`, `location`, `fromDate`, `toDate`, `department`, `consultation`, `symptom`, `repeat`,`created_date`, `modify_date`) VALUES (?,?,?, ?,?,?, ?,?,?, NOW(), NOW())",
+            "INSERT INTO `patient_appoinment`( `patientName`, `title`, `location`, `appointmentTime`, `department`, `consultation`, `symptom`, `repeat`,`created_date`, `modify_date`) VALUES (?,?,?, ?,?,?, ?,?, NOW(), NOW())",
             [
               reqObj.patientName,
               reqObj.title,
               reqObj.location,
-              reqObj.fromDate,
-              reqObj.toDate,
+              reqObj.appointmentTime,
+              
               reqObj.department,
               reqObj.consultation,
               reqObj.symptom,
@@ -566,6 +564,10 @@ module.exports.controller = (app, io, socket_list) => {
       );
     });
   });
+
+  
+
+
 
   app.get("/api/admin/getAllTotals/:user_id", (req, res) => {
     var userid = req.params.user_id;
