@@ -558,9 +558,7 @@ app.get("/api/hospital/patient/:id", (req, res) => {
           "patientName",
           "title",
           "location",
-          "fromDate",
-          "toDate",
-          "fromDate",
+          "appointmentTime",
           "department",
           "consultation",
           "symptom",
@@ -568,13 +566,13 @@ app.get("/api/hospital/patient/:id", (req, res) => {
         ],
         () => {
           db.query(
-            "INSERT INTO `patient_appoinment`( `patientName`, `title`, `location`, `fromDate`, `toDate`, `department`, `consultation`, `symptom`, `repeat`,`created_date`, `modify_date`) VALUES (?,?,?, ?,?,?, ?,?,?, NOW(), NOW())",
+            "INSERT INTO `patient_appoinment`( `patientName`, `title`, `location`, `appointmentTime`, `department`, `consultation`, `symptom`, `repeat`,`created_date`, `modify_date`) VALUES (?,?,?, ?,?,?, ?,?, NOW(), NOW())",
             [
               reqObj.patientName,
               reqObj.title,
               reqObj.location,
-              reqObj.fromDate,
-              reqObj.toDate,
+              reqObj.appointmentTime,
+              
               reqObj.department,
               reqObj.consultation,
               reqObj.symptom,
@@ -601,6 +599,28 @@ app.get("/api/hospital/patient/:id", (req, res) => {
         }
       );
     });
+  });
+
+  app.get("/api/hospital/patient_appointments", (req, res) => {
+    helper.Dlog(req.headers);
+    checkAccessToken(
+      req.headers,
+      res,
+      (userObj) => {
+        db.query("SELECT * FROM `patient_appoinment`", [], (err, result) => {
+          if (err) {
+            helper.ThrowHtmlError(err, res);
+            return;
+          }
+          res.json({
+            status: "1",
+            payload: result,
+            message: msg_success,
+          });
+        });
+      },
+      
+    );
   });
 
   app.get("/api/admin/getAllTotals/:user_id", (req, res) => {
