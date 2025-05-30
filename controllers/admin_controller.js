@@ -565,9 +565,27 @@ module.exports.controller = (app, io, socket_list) => {
     });
   });
 
-  
-
-
+  app.get("/api/hospital/patient_appointments", (req, res) => {
+    helper.Dlog(req.headers);
+    checkAccessToken(
+      req.headers,
+      res,
+      (userObj) => {
+        db.query("SELECT * FROM `patient_appoinment`", [], (err, result) => {
+          if (err) {
+            helper.ThrowHtmlError(err, res);
+            return;
+          }
+          res.json({
+            status: "1",
+            payload: result,
+            message: msg_success,
+          });
+        });
+      },
+      
+    );
+  });
 
   app.get("/api/admin/getAllTotals/:user_id", (req, res) => {
     var userid = req.params.user_id;
