@@ -66,7 +66,7 @@ module.exports.controller = (app, io, socket_list) => {
         "hospital_number",
         "hospital_password",
         "hospital_email",
-        "hospital_resgstrion",
+        "hospital_resgtrion",
         "hospital_gst",
         "status",
       ],
@@ -89,7 +89,7 @@ module.exports.controller = (app, io, socket_list) => {
             } else {
               var auth_token = helper.createRequestToken();
               db.query(
-                "INSERT INTO `hospital_admin`( `hospital_name`, `hospital_address`, `hospital_number`,`hospital_password` ,`auth_token`, `hospital_email`, `hospital_resgstrion`, `hospital_gst`, `status`, `created_date`, `modify_date`) VALUES (?,?,?, ?,?,?,?,?,?, NOW(), NOW())",
+                "INSERT INTO `hospital_admin`( `hospital_name`, `hospital_address`, `hospital_number`,`hospital_password` ,`auth_token`, `hospital_email`, `hospital_resgtrion`, `hospital_gst`, `status`, `created_date`, `modify_date`) VALUES (?,?,?, ?,?,?,?,?,?, NOW(), NOW())",
                 [
                   reqObj.hospital_name,
                   reqObj.hospital_address,
@@ -97,7 +97,7 @@ module.exports.controller = (app, io, socket_list) => {
                   reqObj.hospital_password,
                   auth_token,
                   reqObj.hospital_email,
-                  reqObj.hospital_resgstrion,
+                  reqObj.hospital_resgtrion,
                   reqObj.hospital_gst,
                   reqObj.status,
                 ],
@@ -656,6 +656,311 @@ app.get("/api/hospital/patient/:id", (req, res) => {
     );
   });
 
+  // ===================== Department CRUD APIs =====================
+
+  // Get all departments
+  app.get("/api/hospital/departments", (req, res) => {
+    helper.Dlog(req.headers);
+    checkAccessToken(
+      req.headers,
+      res,
+      (userObj) => {
+        db.query("SELECT * FROM department", [], (err, result) => {
+          if (err) {
+            helper.ThrowHtmlError(err, res);
+            return;
+          }
+          res.json({
+            status: "1",
+            payload: result,
+            message: msg_success,
+          });
+        });
+      },
+      "1"
+    );
+  });
+
+  // Get single department by id
+  app.get("/api/hospital/department/:id", (req, res) => {
+    helper.Dlog(req.headers);
+    checkAccessToken(
+      req.headers,
+      res,
+      (userObj) => {
+        db.query(
+          "SELECT * FROM department WHERE department_id = ?",
+          [req.params.id],
+          (err, result) => {
+            if (err) {
+              helper.ThrowHtmlError(err, res);
+              return;
+            }
+            if (result.length > 0) {
+              res.json({
+                status: "1",
+                payload: result[0],
+                message: msg_success,
+              });
+            } else {
+              res.json({
+                status: "0",
+                message: "Department not found",
+              });
+            }
+          }
+        );
+      },
+      "1"
+    );
+  });
+
+  // Add department
+  app.post("/api/hospital/department_add", (req, res) => {
+    checkAccessToken(req.headers, res, (uObj) => {
+      var reqObj = req.body;
+      helper.Dlog("---------- Parameter ----");
+      helper.Dlog(reqObj);
+      helper.CheckParameterValid(
+        res,
+        reqObj,
+        ["department_name"],
+        () => {
+          db.query(
+            "INSERT INTO department (department_name, created_date, modify_date) VALUES (?, NOW(), NOW())",
+            [reqObj.department_name],
+            (err, result) => {
+              if (err) {
+                helper.ThrowHtmlError(err, res);
+                return;
+              }
+              if (result) {
+                res.json({
+                  status: "1",
+                  message: "Department added successfully",
+                });
+              } else {
+                res.json({
+                  status: "0",
+                  message: "Failed to add department",
+                });
+              }
+            }
+          );
+        }
+      );
+    });
+  });
+
+  // Update department
+  app.put("/api/hospital/department_update", (req, res) => {
+    checkAccessToken(req.headers, res, (uObj) => {
+      var reqObj = req.body;
+      helper.Dlog("---------- Parameter ----");
+      helper.Dlog(reqObj);
+      helper.CheckParameterValid(
+        res,
+        reqObj,
+        ["department_id", "department_name"],
+        () => {
+          db.query(
+            "UPDATE department SET department_name=?, modify_date=NOW() WHERE department_id=?",
+            [reqObj.department_name, reqObj.department_id],
+            (err, result) => {
+              if (err) {
+                helper.ThrowHtmlError(err, res);
+                return;
+              }
+              if (result.affectedRows > 0) {
+                res.json({
+                  status: "1",
+                  message: "Department updated successfully.",
+                });
+              } else {
+                res.json({ status: "0", message: msg_fail });
+              }
+            }
+          );
+        }
+      );
+    });
+  });
+
+  // Delete department
+  app.delete("/api/hospital/department_delete/:id", (req, res) => {
+    checkAccessToken(req.headers, res, (uObj) => {
+      db.query(
+        "DELETE FROM department WHERE department_id=?",
+        [req.params.id],
+        (err, result) => {
+          if (!err) {
+            res.json({
+              status: true,
+              message: "Department deleted successfully",
+            });
+          } else {
+            helper.ThrowHtmlError(err, res);
+          }
+        }
+      );
+    });
+  });
+
+
+  // ===================== Specialization CRUD APIs =====================
+
+  // Get all specializations
+  app.get("/api/hospital/specializations", (req, res) => {
+    helper.Dlog(req.headers);
+    checkAccessToken(
+      req.headers,
+      res,
+      (userObj) => {
+        db.query("SELECT * FROM specialization", [], (err, result) => {
+          if (err) {
+            helper.ThrowHtmlError(err, res);
+            return;
+          }
+          res.json({
+            status: "1",
+            payload: result,
+            message: msg_success,
+          });
+        });
+      },
+      "1"
+    );
+  });
+
+  // Get single specialization by id
+  app.get("/api/hospital/specialization/:id", (req, res) => {
+    helper.Dlog(req.headers);
+    checkAccessToken(
+      req.headers,
+      res,
+      (userObj) => {
+        db.query(
+          "SELECT * FROM specialization WHERE specialization_id = ?",
+          [req.params.id],
+          (err, result) => {
+            if (err) {
+              helper.ThrowHtmlError(err, res);
+              return;
+            }
+            if (result.length > 0) {
+              res.json({
+                status: "1",
+                payload: result[0],
+                message: msg_success,
+              });
+            } else {
+              res.json({
+                status: "0",
+                message: "Specialization not found",
+              });
+            }
+          }
+        );
+      },
+      "1"
+    );
+  });
+
+  // Add specialization
+  app.post("/api/hospital/specialization_add", (req, res) => {
+    checkAccessToken(req.headers, res, (uObj) => {
+      var reqObj = req.body;
+      helper.Dlog("---------- Parameter ----");
+      helper.Dlog(reqObj);
+      helper.CheckParameterValid(
+        res,
+        reqObj,
+        ["specialization_name"],
+        () => {
+          db.query(
+            "INSERT INTO specialization (specialization_name, created_date, modify_date) VALUES (?, NOW(), NOW())",
+            [reqObj.specialization_name],
+            (err, result) => {
+              if (err) {
+                helper.ThrowHtmlError(err, res);
+                return;
+              }
+              if (result) {
+                res.json({
+                  status: "1",
+                  message: "Specialization added successfully",
+                });
+              } else {
+                res.json({
+                  status: "0",
+                  message: "Failed to add specialization",
+                });
+              }
+            }
+          );
+        }
+      );
+    });
+  });
+
+  // Update specialization
+  app.put("/api/hospital/specialization_update", (req, res) => {
+    checkAccessToken(req.headers, res, (uObj) => {
+      var reqObj = req.body;
+      helper.Dlog("---------- Parameter ----");
+      helper.Dlog(reqObj);
+      helper.CheckParameterValid(
+        res,
+        reqObj,
+        ["specialization_id", "specialization_name"],
+        () => {
+          db.query(
+            "UPDATE specialization SET specialization_name=?, modify_date=NOW() WHERE specialization_id=?",
+            [reqObj.specialization_name, reqObj.specialization_id],
+            (err, result) => {
+              if (err) {
+                helper.ThrowHtmlError(err, res);
+                return;
+              }
+              if (result.affectedRows > 0) {
+                res.json({
+                  status: "1",
+                  message: "Specialization updated successfully.",
+                });
+              } else {
+                res.json({ status: "0", message: msg_fail });
+              }
+            }
+          );
+        }
+      );
+    });
+  });
+
+  // Delete specialization
+  app.delete("/api/hospital/specialization_delete/:id", (req, res) => {
+    checkAccessToken(req.headers, res, (uObj) => {
+      db.query(
+        "DELETE FROM specialization WHERE specialization_id=?",
+        [req.params.id],
+        (err, result) => {
+          if (!err) {
+            res.json({
+              status: true,
+              message: "Specialization deleted successfully",
+            });
+          } else {
+            helper.ThrowHtmlError(err, res);
+          }
+        }
+      );
+    });
+  });
+
+
+
+
+  
   app.get("/api/admin/getAllTotals/:user_id", (req, res) => {
     var userid = req.params.user_id;
     console.log(userid);
@@ -1736,4 +2041,6 @@ app.get("/api/hospital/patient/:id", (req, res) => {
   });
 
   // =========================================================================================================================================
+
+  
 };
