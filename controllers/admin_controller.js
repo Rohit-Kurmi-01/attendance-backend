@@ -361,6 +361,39 @@ module.exports.controller = (app, io, socket_list) => {
     });
   });
 
+  app.get("/api/hospital/doctor/:id", (req, res) => {
+  helper.Dlog(req.headers);
+  checkAccessToken(
+    req.headers,
+    res,
+    (userObj) => {
+      db.query(
+        "SELECT * FROM `docters` WHERE `dr_id` = ?",
+        [req.params.id],
+        (err, result) => {
+          if (err) {
+            helper.ThrowHtmlError(err, res);
+            return;
+          }
+          if (result.length > 0) {
+            res.json({
+              status: "1",
+              payload: result[0],
+              message: msg_success,
+            });
+          } else {
+            res.json({
+              status: "0",
+              message: "Doctor not found",
+            });
+          }
+        }
+      );
+    },
+    "1"
+  );
+});
+
   app.get("/api/hospital/patients", (req, res) => {
     helper.Dlog(req.headers);
     checkAccessToken(
