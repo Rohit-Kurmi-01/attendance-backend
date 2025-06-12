@@ -15,12 +15,13 @@ module.exports.controller = (app, io, socket_list) => {
   const msg_product_update = "Product updated Successfully.";
   const msg_product_delete = "Product deleted Successfully.";
 
+  // Generic access token check for users table
   function checkAccessToken(headerObj, res, callback, require_type = "") {
     helper.Dlog(headerObj.access_token);
     helper.CheckParameterValid(res, headerObj, ["access_token"], () => {
       db.query(
-        "SELECT `hospital_id`, `hospital_name`, `user_type`, `hospital_address`, `hospital_number`, `hospital_password`, `auth_token`, `hospital_resgstrion`,  `auth_token`, `status` FROM `hospital_admin` WHERE `auth_token` = ? AND `status` = ? ",
-        [headerObj.access_token, "1"],
+        "SELECT `user_id`, `email`, `role`, `auth_token`, `is_active` FROM `users` WHERE `auth_token` = ? AND `is_active` = 1",
+        [headerObj.access_token],
         (err, result) => {
           if (err) {
             helper.ThrowHtmlError(err, res);
@@ -29,7 +30,7 @@ module.exports.controller = (app, io, socket_list) => {
           helper.Dlog(result);
           if (result.length > 0) {
             if (require_type != "") {
-              if (require_type == result[0].user_type) {
+              if (require_type == result[0].role) {
                 return callback(result[0]);
               } else {
                 res.json({
@@ -53,129 +54,48 @@ module.exports.controller = (app, io, socket_list) => {
     });
   }
 
-  app.post("/api/hospital/sign_up", (req, res) => {
+  app.post("/api/user/login", (req, res) => {
     helper.Dlog(req.body);
-    var reqObj = req.body;
+    const reqObj = req.body;
+
+    // Debug: Log incoming credentials
+    console.log("LOGIN ATTEMPT:", reqObj.email, reqObj.password);
 
     helper.CheckParameterValid(
       res,
       reqObj,
-      [
-        "hospital_name",
-        "hospital_address",
-        "hospital_number",
-        "hospital_password",
-        "hospital_email",
-        "hospital_resgtrion",
-        "hospital_gst",
-        "status",
-      ],
+      ["email", "password"],
       () => {
+        const authToken = helper.createRequestToken();
+
         db.query(
-          "SELECT `hospital_id`, `status` FROM `hospital_admin` WHERE `hospital_email` = ? ",
-          [reqObj.hospital_email],
-          (err, result) => {
-            if (err) {
-              helper.ThrowHtmlError(err, res);
-              return;
-            }
-
-            if (result.length > 0) {
-              res.json({
-                status: "1",
-                payload: result[0],
-                message: msg_already_register,
-              });
-            } else {
-              var auth_token = helper.createRequestToken();
-              db.query(
-                "INSERT INTO `hospital_admin`( `hospital_name`, `hospital_address`, `hospital_number`,`hospital_password` ,`auth_token`, `hospital_email`, `hospital_resgtrion`, `hospital_gst`, `status`, `created_date`, `modify_date`) VALUES (?,?,?, ?,?,?,?,?,?, NOW(), NOW())",
-                [
-                  reqObj.hospital_name,
-                  reqObj.hospital_address,
-                  reqObj.hospital_number,
-                  reqObj.hospital_password,
-                  auth_token,
-                  reqObj.hospital_email,
-                  reqObj.hospital_resgtrion,
-                  reqObj.hospital_gst,
-                  reqObj.status,
-                ],
-                (err, result) => {
-                  if (err) {
-                    helper.ThrowHtmlError(err, res);
-                    return;
-                  }
-
-                  if (result) {
-                    db.query(
-                      'SELECT `hospital_id`, `hospital_name`, `hospital_address`, `hospital_email`  FROM `hospital_admin` WHERE `hospital_id` = ? AND `status` = "1" ',
-                      [result.insertId],
-                      (err, result) => {
-                        if (err) {
-                          helper.ThrowHtmlError(err, res);
-                          return;
-                        }
-
-                        if (result.length > 0) {
-                          res.json({
-                            status: "1",
-                            payload: result[0],
-                            message: msg_success,
-                          });
-                        } else {
-                          res.json({ status: "0", message: msg_invalidUser });
-                        }
-                      }
-                    );
-                  } else {
-                    res.json({ status: "0", message: msg_fail });
-                  }
-                }
-              );
-            }
-          }
-        );
-      }
-    );
-  });
-
-  app.post("/api/hospital/login", (req, res) => {
-    helper.Dlog(req.body);
-    var reqObj = req.body;
-    helper.CheckParameterValid(
-      res,
-      reqObj,
-      ["hospital_email", "hospital_password"],
-      () => {
-        var authToken = helper.createRequestToken();
-        db.query(
-          "UPDATE `hospital_admin` SET `auth_token` = ?,  `modify_date` = NOW() WHERE `user_type` = ? AND `hospital_email` = ? AND `hospital_password` = ? AND `status` = ? ",
+          "UPDATE `users` SET `auth_token` = ?, `created_at` = NOW() WHERE `email` = ? AND `password_hash` = ? AND `is_active` = 1",
           [
             authToken,
-            "1",
-            reqObj.hospital_email,
-            reqObj.hospital_password,
-            "1",
+            reqObj.email,
+            reqObj.password,
           ],
           (err, result) => {
             if (err) {
-              helper.ThrowHtmlError(err, res);
+              res.status(500).json({ status: "0", message: "Server error", error: err.message });
               return;
             }
 
-            if (result.affectedRows > 0) {
-              console.log("hii    ");
+            // Debug: Log update result
+            console.log("UPDATE RESULT:", result);
 
+            if (result.affectedRows > 0) {
               db.query(
-                'SELECT `hospital_id`, `hospital_email` , `auth_token` FROM `hospital_admin` WHERE `hospital_email` = ? AND `hospital_password` = ? AND `status` = "1" ',
-                [reqObj.hospital_email, reqObj.hospital_password],
+                "SELECT `user_id`, `name`, `email`, `role`, `is_active`, `created_at`, `auth_token` FROM `users` WHERE `email` = ? AND `password_hash` = ? AND `is_active` = 1",
+                [reqObj.email, reqObj.password],
                 (err, result) => {
-                  console.log(err);
                   if (err) {
-                    helper.ThrowHtmlError(err, res);
+                    res.status(500).json({ status: "0", message: "Server error", error: err.message });
                     return;
                   }
+
+                  // Debug: Log select result
+                  console.log("SELECT RESULT:", result);
 
                   if (result.length > 0) {
                     res.json({
@@ -201,1846 +121,333 @@ module.exports.controller = (app, io, socket_list) => {
         );
       }
     );
+
+    // Fallback: If no response was sent, send a generic error after a short delay
+    setTimeout(() => {
+      if (!res.headersSent) {
+        res.status(500).json({ status: "0", message: "Unknown error" });
+      }
+    }, 1000);
   });
 
-  app.get("/api/hospital/docters", (req, res) => {
-    helper.Dlog(req.headers);
-    checkAccessToken(
-      req.headers,
-      res,
-      (userObj) => {
-        console.log(res);
-        db.query("SELECT * FROM `docters` ", [], (err, result) => {
+   // Add Employee
+  app.post("/api/employee/add", (req, res) => {
+    const reqObj = req.body;
+    helper.CheckParameterValid(res, reqObj, ["name", "email", "password", "role"], () => {
+      const authToken = helper.createRequestToken();
+      db.query(
+        "INSERT INTO `users` (`name`, `email`, `password_hash`, `role`, `is_active`, `created_at`, `auth_token`) VALUES (?, ?, ?, ?, 1, NOW(), ?)",
+        [reqObj.name, reqObj.email, reqObj.password, reqObj.role, authToken],
+        (err, result) => {
+          if (err) {
+            helper.ThrowHtmlError(err, res);
+            return;
+          }
+          res.json({ status: "1", message: "Employee added successfully", id: result.insertId });
+        }
+      );
+    });
+  });
+
+  // Get All Employees
+  app.get("/api/employee/list", (req, res) => {
+    db.query(
+      "SELECT `user_id`, `name`, `email`, `role`, `is_active`, `created_at` FROM `users` WHERE `role` = 'employee'",
+      [],
+      (err, result) => {
+        if (err) {
+          helper.ThrowHtmlError(err, res);
+          return;
+        }
+        res.json({ status: "1", payload: result });
+      }
+    );
+  });
+
+  // Update Employee
+  app.put("/api/employee/update/:id", (req, res) => {
+    const reqObj = req.body;
+    const id = req.params.id;
+    helper.CheckParameterValid(res, reqObj, ["name", "email", "role", "is_active"], () => {
+      db.query(
+        "UPDATE `users` SET `name`=?, `email`=?, `role`=?, `is_active`=? WHERE `user_id`=?",
+        [reqObj.name, reqObj.email, reqObj.role, reqObj.is_active, id],
+        (err, result) => {
+          if (err) {
+            helper.ThrowHtmlError(err, res);
+            return;
+          }
+          res.json({ status: "1", message: "Employee updated successfully" });
+        }
+      );
+    });
+  });
+
+  // Delete Employee
+  app.delete("/api/employee/delete/:id", (req, res) => {
+    const id = req.params.id;
+    db.query(
+      "DELETE FROM `users` WHERE `user_id`=?",
+      [id],
+      (err, result) => {
+        if (err) {
+          helper.ThrowHtmlError(err, res);
+          return;
+        }
+        res.json({ status: "1", message: "Employee deleted successfully" });
+      }
+    );
+  });
+
+
+   // Add IP
+  app.post("/api/ip/add", (req, res) => {
+    const reqObj = req.body;
+    helper.CheckParameterValid(res, reqObj, ["ip_address", "description"], () => {
+      db.query(
+        "INSERT INTO `allowed_ips` (`ip_address`, `description`, `created_at`) VALUES (?, ?, NOW())",
+        [reqObj.ip_address, reqObj.description],
+        (err, result) => {
+          if (err) {
+            helper.ThrowHtmlError(err, res);
+            return;
+          }
+          res.json({ status: "1", message: "IP added successfully", id: result.insertId });
+        }
+      );
+    });
+  });
+
+  // Get All IPs
+  app.get("/api/ip/list", (req, res) => {
+    db.query(
+      "SELECT `id`, `ip_address`, `description`, `created_at` FROM `allowed_ips` ORDER BY `created_at` DESC",
+      [],
+      (err, result) => {
+        if (err) {
+          helper.ThrowHtmlError(err, res);
+          return;
+        }
+        res.json({ status: "1", payload: result });
+      }
+    );
+  });
+
+  // Delete IP
+  app.delete("/api/ip/delete/:id", (req, res) => {
+    const id = req.params.id;
+    db.query(
+      "DELETE FROM `allowed_ips` WHERE `id`=?",
+      [id],
+      (err, result) => {
+        if (err) {
+          helper.ThrowHtmlError(err, res);
+          return;
+        }
+        res.json({ status: "1", message: "IP deleted successfully" });
+      }
+    );
+  });
+
+// ========================== Attendance APIs =============================
+
+  // Add a new attendance record
+  app.post("/api/attendance/add", (req, res) => {
+    var reqObj = req.body;
+    helper.CheckParameterValid(res, reqObj, [
+      "user_id", "username", "date", "status", "ip_address", "workingHours"
+    ], () => {
+      db.query(
+        "INSERT INTO attendance_records (user_id, username, date, status, ip_address, workingHours, morning_check_in, morning_check_out, evening_check_in, evening_check_out) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+          reqObj.user_id,
+          reqObj.username,
+          reqObj.date,
+          reqObj.status,
+          reqObj.ip_address,
+          reqObj.workingHours,
+          reqObj.morning_check_in || null,
+          reqObj.morning_check_out || null,
+          reqObj.evening_check_in || null,
+          reqObj.evening_check_out || null
+        ],
+        (err, result) => {
           if (err) {
             helper.ThrowHtmlError(err, res);
             return;
           }
           res.json({
             status: "1",
-            payload: result,
-            message: msg_success,
+            message: "Attendance record added successfully",
+            id: result.insertId,
           });
-        });
-      },
-      "1"
-    );
-  });
-
-  app.post("/api/hospital/docter_add", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      console.log(uObj);
-      var reqObj = req.body;
-      helper.Dlog("---------- Parameter ----");
-      helper.Dlog(reqObj);
-      helper.CheckParameterValid(
-        res,
-        reqObj,
-        [
-          "dr_name",
-          "dr_phoneno",
-          "dr_email",
-          "dr_gender",
-          "dr_department",
-          "dr_education",
-          "dr_experience",
-          "dr_designation",
-          "dr_doctorTiming",
-          "dr_specialization",
-        ],
-        () => {
-          db.query(
-            "INSERT INTO `docters`(`dr_name`, `dr_phoneno`, `dr_email`, `dr_gender`, `dr_department`, `dr_education`, `dr_experience`, `dr_designation`, `dr_doctorTiming`, `hospital_id`,`dr_specialization`, `created_date`, `modify_date`) VALUES (?,?,?, ?,?,?,?,?, ?,?,?, NOW(), NOW() ) ",
-            [
-              reqObj.dr_name,
-              reqObj.dr_phoneno,
-              reqObj.dr_email,
-              reqObj.dr_gender,
-              reqObj.dr_department,
-              reqObj.dr_education,
-              reqObj.dr_experience,
-              reqObj.dr_designation,
-              reqObj.dr_doctorTiming,
-              uObj.hospital_id,
-              reqObj.dr_specialization,
-            ],
-            (err, result) => {
-              if (err) {
-                helper.ThrowHtmlError(err, res);
-                return;
-              }
-              if (result) {
-                res.json({
-                  status: "1",
-                  message: msg_product_added,
-                });
-              } else {
-                res.json({ status: "0", message: msg_fail });
-              }
-            }
-          );
         }
       );
     });
   });
 
-  app.delete("/api/hospital/docter_delete/:id", (req, res) => {
-    console.log(req.params.id);
-    checkAccessToken(req.headers, res, (uObj) => {
+  // Update an attendance record by ID
+  app.put("/api/attendance/update/:id", (req, res) => {
+    var reqObj = req.body;
+    var id = req.params.id;
+    helper.CheckParameterValid(res, reqObj, [
+      "user_id", "username", "date", "status", "ip_address", "workingHours"
+    ], () => {
       db.query(
-        "DELETE FROM docters WHERE dr_id=?",
-        [req.params.id],
-        (err, rows, fields) => {
-          if (!err) {
-            res.json({
-              status: true,
-              message: "Docter deleted Successfully",
-            });
-          } else {
-            console.log(err);
-          }
-        }
-      );
-    });
-  });
-
-  app.put("/api/hospital/docter_update", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      var reqObj = req.body;
-      helper.Dlog("---------- Parameter ----");
-      helper.Dlog(reqObj);
-      helper.CheckParameterValid(
-        res,
-        reqObj,
+        "UPDATE attendance_records SET user_id=?, username=?, date=?, status=?, ip_address=?, workingHours=?, morning_check_in=?, morning_check_out=?, evening_check_in=?, evening_check_out=? WHERE id=?",
         [
-          "dr_id",
-          "dr_name",
-          "dr_phoneno",
-          "dr_email",
-          "dr_gender",
-          "dr_department",
-          "dr_education",
-          "dr_experience",
-          "dr_designation",
-          "dr_doctorTiming",
-          "dr_specialization",
+          reqObj.user_id,
+          reqObj.username,
+          reqObj.date,
+          reqObj.status,
+          reqObj.ip_address,
+          reqObj.workingHours,
+          reqObj.morning_check_in || null,
+          reqObj.morning_check_out || null,
+          reqObj.evening_check_in || null,
+          reqObj.evening_check_out || null,
+          id
         ],
-        () => {
-          db.query(
-            "UPDATE `docters` SET `dr_name`=?, `dr_phoneno`=?, `dr_email`=?, `dr_gender`=?, `dr_department`=?, `dr_education`=?, `dr_experience`=?, `dr_designation`=?, `dr_doctorTiming`=?,  `dr_specialization`=?, `modify_date`=NOW() WHERE `dr_id`=? AND `hospital_id`=?",
-            [
-              reqObj.dr_name,
-              reqObj.dr_phoneno,
-              reqObj.dr_email,
-              reqObj.dr_gender,
-              reqObj.dr_department,
-              reqObj.dr_education,
-              reqObj.dr_experience,
-              reqObj.dr_designation,
-              reqObj.dr_doctorTiming,
-              reqObj.dr_specialization,
-              reqObj.dr_id,
-              uObj.hospital_id,
-            ],
-            (err, result) => {
-              if (err) {
-                helper.ThrowHtmlError(err, res);
-                return;
-              }
-              if (result.affectedRows > 0) {
-                res.json({
-                  status: "1",
-                  message: "Docter updated Successfully.",
-                });
-              } else {
-                res.json({ status: "0", message: msg_fail });
-              }
-            }
-          );
-        }
-      );
-    });
-  });
-
-  app.get("/api/hospital/doctor/:id", (req, res) => {
-  helper.Dlog(req.headers);
-  checkAccessToken(
-    req.headers,
-    res,
-    (userObj) => {
-      db.query(
-        "SELECT * FROM `docters` WHERE `dr_id` = ?",
-        [req.params.id],
         (err, result) => {
           if (err) {
             helper.ThrowHtmlError(err, res);
             return;
           }
-          if (result.length > 0) {
+          if (result.affectedRows > 0) {
             res.json({
               status: "1",
-              payload: result[0],
-              message: msg_success,
+              message: "Attendance record updated successfully",
             });
           } else {
-            res.json({
-              status: "0",
-              message: "Doctor not found",
-            });
+            res.json({ status: "0", message: "Attendance record not found" });
           }
         }
       );
-    },
-    "1"
-  );
-});
+    });
+  });
 
-  app.get("/api/hospital/patients", (req, res) => {
-    helper.Dlog(req.headers);
-    checkAccessToken(
-      req.headers,
-      res,
-      (userObj) => {
-        db.query("SELECT * FROM `add_patients`", [], (err, result) => {
-          if (err) {
-            helper.ThrowHtmlError(err, res);
-            return;
-          }
+  // Delete an attendance record by ID
+  app.delete("/api/attendance/delete/:id", (req, res) => {
+    db.query(
+      "DELETE FROM attendance_records WHERE id=?",
+      [req.params.id],
+      (err, result) => {
+        if (err) {
+          helper.ThrowHtmlError(err, res);
+          return;
+        }
+        if (result.affectedRows > 0) {
           res.json({
             status: "1",
-            payload: result,
-            message: msg_success,
+            message: "Attendance record deleted successfully",
           });
-        });
-      },
-      "1"
+        } else {
+          res.json({ status: "0", message: "Attendance record not found" });
+        }
+      }
     );
   });
 
-  app.post("/api/hospital/patient_add", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      console.log(uObj);
-      var reqObj = req.body;
-      helper.Dlog("---------- Parameter ----");
-      helper.Dlog(reqObj);
-
-      helper.CheckParameterValid(
-        res,
-        reqObj,
-        [
-          "p_name",
-          "p_bloodgroup",
-          "p_dob",
-          "p_phone",
-          "p_email",
-          "p_symptoms",
-          "p_gender",
-        ],
-        () => {
-          db.query(
-            "INSERT INTO `add_patients`(`p_name`, `p_bloodgroup`, `p_dob`, `p_phone`, `p_email`, `p_symptoms`, `p_gender`, `created_date`, `modify_date`) VALUES (?,?,?,?,?,?,?, NOW(), NOW())",
-            [
-              reqObj.p_name,
-              reqObj.p_bloodgroup,
-              reqObj.p_dob,
-              reqObj.p_phone,
-              reqObj.p_email,
-              reqObj.p_symptoms,
-              reqObj.p_gender,
-            ],
-            (err, result) => {
-              if (err) {
-                helper.ThrowHtmlError(err, res);
-                return;
-              }
-              if (result) {
-                res.json({
-                  status: "1",
-                  message: "Patient added successfully",
-                });
-              } else {
-                res.json({
-                  status: "0",
-                  message: "Failed to add patient",
-                });
-              }
-            }
-          );
-        }
-      );
-    });
-  });
-
-  app.delete("/api/hospital/patient_delete/:id", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      db.query(
-        "DELETE FROM add_patients WHERE p_id = ?",
-        [req.params.id],
-        (err, rows) => {
-          if (!err) {
-            res.json({
-              status: true,
-              message: "Patient deleted Successfully",
-            });
-          } else {
-            console.log(err);
-            helper.ThrowHtmlError(err, res);
-          }
-        }
-      );
-    });
-  });
-
-
-
-app.get("/api/hospital/patient/:id", (req, res) => {
-  helper.Dlog(req.headers);
-  checkAccessToken(
-    req.headers,
-    res,
-    (userObj) => {
-      db.query(
-        "SELECT * FROM `add_patients` WHERE `p_id` = ?",
-        [req.params.id],
-        (err, result) => {
-          if (err) {
-            helper.ThrowHtmlError(err, res);
-            return;
-          }
-          if (result.length > 0) {
-            res.json({
-              status: "1",
-              payload: result[0],
-              message: msg_success,
-            });
-          } else {
-            res.json({
-              status: "0",
-              message: "Patient not found",
-            });
-          }
-        }
-      );
-    },
-    "1"
-  );
-});
-
-
-  app.put("/api/hospital/patient_update", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      var reqObj = req.body;
-      helper.Dlog("---------- Parameter ----");
-      helper.Dlog(reqObj);
-
-      helper.CheckParameterValid(
-        res,
-        reqObj,
-        [
-          "p_id",
-          "p_name",
-          "p_bloodgroup",
-          "p_dob",
-          "p_phone",
-          "p_email",
-          "p_symptoms",
-          "p_gender",
-        ],
-        () => {
-          db.query(
-            "UPDATE `add_patients` SET `p_name`=?, `p_bloodgroup`=?, `p_dob`=?, `p_phone`=?, `p_email`=?, `p_symptoms`=?, `p_gender`=?, `modify_date`=NOW() WHERE `p_id`=?",
-            [
-              reqObj.p_name,
-              reqObj.p_bloodgroup,
-              reqObj.p_dob,
-              reqObj.p_phone,
-              reqObj.p_email,
-              reqObj.p_symptoms,
-              reqObj.p_gender,
-              reqObj.p_id,
-            ],
-            (err, result) => {
-              if (err) {
-                helper.ThrowHtmlError(err, res);
-                return;
-              }
-              if (result.affectedRows > 0) {
-                res.json({
-                  status: "1",
-                  message: "Patient updated Successfully.",
-                });
-              } else {
-                res.json({ status: "0", message: msg_fail });
-              }
-            }
-          );
-        }
-      );
-    });
-  });
-
-  app.post("/api/hospital/patient_appoinment_add", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      var reqObj = req.body;
-      helper.Dlog("---------- Parameter ----");
-      helper.Dlog(reqObj);
-
-      helper.CheckParameterValid(
-        res,
-        reqObj,
-        [
-          "patientName",
-          "title",
-          "location",
-          "appointmentTime",
-          "department",
-          "consultation",
-          "symptom",
-          "repeat",
-        ],
-        () => {
-          db.query(
-            "INSERT INTO `patient_appoinment`( `patientName`, `title`, `location`, `appointmentTime`, `department`, `consultation`, `symptom`, `repeat`,`created_date`, `modify_date`) VALUES (?,?,?, ?,?,?, ?,?, NOW(), NOW())",
-            [
-              reqObj.patientName,
-              reqObj.title,
-              reqObj.location,
-              reqObj.appointmentTime,
-              
-              reqObj.department,
-              reqObj.consultation,
-              reqObj.symptom,
-              reqObj.repeat,
-            ],
-            (err, result) => {
-              if (err) {
-                helper.ThrowHtmlError(err, res);
-                return;
-              }
-              if (result) {
-                res.json({
-                  status: "1",
-                  message: "Appoinment added successfully",
-                });
-              } else {
-                res.json({
-                  status: "0",
-                  message: "Failed to add appoinment",
-                });
-              }
-            }
-          );
-        }
-      );
-    });
-  });
-
-  app.get("/api/hospital/patient_appointments", (req, res) => {
-    helper.Dlog(req.headers);
-    checkAccessToken(
-      req.headers,
-      res,
-      (userObj) => {
-        db.query("SELECT * FROM `patient_appoinment`", [], (err, result) => {
-          if (err) {
-            helper.ThrowHtmlError(err, res);
-            return;
-          }
-          res.json({
-            status: "1",
-            payload: result,
-            message: msg_success,
-          });
-        });
-      },
-      
-    );
-  });
-
-  // ===================== Department CRUD APIs =====================
-
-  // Get all departments
-  app.get("/api/hospital/departments", (req, res) => {
-    helper.Dlog(req.headers);
-    checkAccessToken(
-      req.headers,
-      res,
-      (userObj) => {
-        db.query("SELECT * FROM department", [], (err, result) => {
-          if (err) {
-            helper.ThrowHtmlError(err, res);
-            return;
-          }
-          res.json({
-            status: "1",
-            payload: result,
-            message: msg_success,
-          });
-        });
-      },
-      "1"
-    );
-  });
-
-  // Get single department by id
-  app.get("/api/hospital/department/:id", (req, res) => {
-    helper.Dlog(req.headers);
-    checkAccessToken(
-      req.headers,
-      res,
-      (userObj) => {
-        db.query(
-          "SELECT * FROM department WHERE department_id = ?",
-          [req.params.id],
-          (err, result) => {
-            if (err) {
-              helper.ThrowHtmlError(err, res);
-              return;
-            }
-            if (result.length > 0) {
-              res.json({
-                status: "1",
-                payload: result[0],
-                message: msg_success,
-              });
-            } else {
-              res.json({
-                status: "0",
-                message: "Department not found",
-              });
-            }
-          }
-        );
-      },
-      "1"
-    );
-  });
-
-  // Add department
-  app.post("/api/hospital/department_add", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      var reqObj = req.body;
-      helper.Dlog("---------- Parameter ----");
-      helper.Dlog(reqObj);
-      helper.CheckParameterValid(
-        res,
-        reqObj,
-        ["department_name"],
-        () => {
-          db.query(
-            "INSERT INTO department (department_name, created_date, modify_date) VALUES (?, NOW(), NOW())",
-            [reqObj.department_name],
-            (err, result) => {
-              if (err) {
-                helper.ThrowHtmlError(err, res);
-                return;
-              }
-              if (result) {
-                res.json({
-                  status: "1",
-                  message: "Department added successfully",
-                });
-              } else {
-                res.json({
-                  status: "0",
-                  message: "Failed to add department",
-                });
-              }
-            }
-          );
-        }
-      );
-    });
-  });
-
-  // Update department
-  app.put("/api/hospital/department_update", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      var reqObj = req.body;
-      helper.Dlog("---------- Parameter ----");
-      helper.Dlog(reqObj);
-      helper.CheckParameterValid(
-        res,
-        reqObj,
-        ["department_id", "department_name"],
-        () => {
-          db.query(
-            "UPDATE department SET department_name=?, modify_date=NOW() WHERE department_id=?",
-            [reqObj.department_name, reqObj.department_id],
-            (err, result) => {
-              if (err) {
-                helper.ThrowHtmlError(err, res);
-                return;
-              }
-              if (result.affectedRows > 0) {
-                res.json({
-                  status: "1",
-                  message: "Department updated successfully.",
-                });
-              } else {
-                res.json({ status: "0", message: msg_fail });
-              }
-            }
-          );
-        }
-      );
-    });
-  });
-
-  // Delete department
-  app.delete("/api/hospital/department_delete/:id", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      db.query(
-        "DELETE FROM department WHERE department_id=?",
-        [req.params.id],
-        (err, result) => {
-          if (!err) {
-            res.json({
-              status: true,
-              message: "Department deleted successfully",
-            });
-          } else {
-            helper.ThrowHtmlError(err, res);
-          }
-        }
-      );
-    });
-  });
-
-
-  // ===================== Specialization CRUD APIs =====================
-
-  // Get all specializations
-  app.get("/api/hospital/specializations", (req, res) => {
-    helper.Dlog(req.headers);
-    checkAccessToken(
-      req.headers,
-      res,
-      (userObj) => {
-        db.query("SELECT * FROM specialization", [], (err, result) => {
-          if (err) {
-            helper.ThrowHtmlError(err, res);
-            return;
-          }
-          res.json({
-            status: "1",
-            payload: result,
-            message: msg_success,
-          });
-        });
-      },
-      "1"
-    );
-  });
-
-  // Get single specialization by id
-  app.get("/api/hospital/specialization/:id", (req, res) => {
-    helper.Dlog(req.headers);
-    checkAccessToken(
-      req.headers,
-      res,
-      (userObj) => {
-        db.query(
-          "SELECT * FROM specialization WHERE specialization_id = ?",
-          [req.params.id],
-          (err, result) => {
-            if (err) {
-              helper.ThrowHtmlError(err, res);
-              return;
-            }
-            if (result.length > 0) {
-              res.json({
-                status: "1",
-                payload: result[0],
-                message: msg_success,
-              });
-            } else {
-              res.json({
-                status: "0",
-                message: "Specialization not found",
-              });
-            }
-          }
-        );
-      },
-      "1"
-    );
-  });
-
-  // Add specialization
-  app.post("/api/hospital/specialization_add", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      var reqObj = req.body;
-      helper.Dlog("---------- Parameter ----");
-      helper.Dlog(reqObj);
-      helper.CheckParameterValid(
-        res,
-        reqObj,
-        ["specialization_name"],
-        () => {
-          db.query(
-            "INSERT INTO specialization (specialization_name, created_date, modify_date) VALUES (?, NOW(), NOW())",
-            [reqObj.specialization_name],
-            (err, result) => {
-              if (err) {
-                helper.ThrowHtmlError(err, res);
-                return;
-              }
-              if (result) {
-                res.json({
-                  status: "1",
-                  message: "Specialization added successfully",
-                });
-              } else {
-                res.json({
-                  status: "0",
-                  message: "Failed to add specialization",
-                });
-              }
-            }
-          );
-        }
-      );
-    });
-  });
-
-  // Update specialization
-  app.put("/api/hospital/specialization_update", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      var reqObj = req.body;
-      helper.Dlog("---------- Parameter ----");
-      helper.Dlog(reqObj);
-      helper.CheckParameterValid(
-        res,
-        reqObj,
-        ["specialization_id", "specialization_name"],
-        () => {
-          db.query(
-            "UPDATE specialization SET specialization_name=?, modify_date=NOW() WHERE specialization_id=?",
-            [reqObj.specialization_name, reqObj.specialization_id],
-            (err, result) => {
-              if (err) {
-                helper.ThrowHtmlError(err, res);
-                return;
-              }
-              if (result.affectedRows > 0) {
-                res.json({
-                  status: "1",
-                  message: "Specialization updated successfully.",
-                });
-              } else {
-                res.json({ status: "0", message: msg_fail });
-              }
-            }
-          );
-        }
-      );
-    });
-  });
-
-  // Delete specialization
-  app.delete("/api/hospital/specialization_delete/:id", (req, res) => {
-    checkAccessToken(req.headers, res, (uObj) => {
-      db.query(
-        "DELETE FROM specialization WHERE specialization_id=?",
-        [req.params.id],
-        (err, result) => {
-          if (!err) {
-            res.json({
-              status: true,
-              message: "Specialization deleted successfully",
-            });
-          } else {
-            helper.ThrowHtmlError(err, res);
-          }
-        }
-      );
-    });
-  });
-
-
-
-
-  
-  app.get("/api/admin/getAllTotals/:user_id", (req, res) => {
-    var userid = req.params.user_id;
-    console.log(userid);
-    db.query("SELECT count(*) as total  FROM  user_detail ", (err, result1) => {
-      db.query("SELECT count(*) as total  FROM user_order", (err, result2) => {
-        db.query(
-          "SELECT count(*) as total  FROM product_detail  ",
-          (err, result3) => {
-            if (err) throw err;
-            var results = [];
-            results.push({
-              Users: result1[0].total,
-              Orders: result2[0].total,
-              product_detail: result3[0].total,
-            });
-            res.json({
-              status: true,
-              data: results,
-              message: "Total",
-            });
-          }
-        );
+  // List attendance records (optionally filter by user_id and/or date)
+  app.get("/api/attendance/list", (req, res) => {
+    let { user_id, date } = req.query;
+    let sql = "SELECT id, user_id, username, date, status, ip_address, workingHours, morning_check_in, morning_check_out, evening_check_in, evening_check_out FROM attendance_records WHERE 1=1";
+    let params = [];
+    if (user_id) {
+      sql += " AND user_id = ?";
+      params.push(user_id);
+    }
+    if (date) {
+      sql += " AND date = ?";
+      params.push(date);
+    }
+    sql += " ORDER BY date DESC";
+    db.query(sql, params, (err, results) => {
+      if (err) {
+        helper.ThrowHtmlError(err, res);
+        return;
+      }
+      res.json({
+        status: "1",
+        payload: results,
       });
     });
   });
 
-  app.get("/api/get_admin_profile/:user_id", (req, res) => {
-    db.query(
-      "SELECT * FROM user_detail WHERE user_id=?",
-      [req.params.user_id],
-      (err, results) => {
-        if (!err) {
-          res.send(results);
-        } else {
-          console.log(err);
-        }
+  // List attendance record for a user by user_id and current date
+  app.get("/api/attendance/today/:user_id", (req, res) => {
+    const user_id = req.params.user_id;
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const sql = "SELECT id, user_id, username, date, status, ip_address, workingHours, morning_check_in, morning_check_out, evening_check_in, evening_check_out FROM attendance_records WHERE user_id = ? AND date = ?";
+    db.query(sql, [user_id, today], (err, results) => {
+      if (err) {
+        helper.ThrowHtmlError(err, res);
+        return;
       }
-    );
-  });
-
-  app.get("/api/admin/getAllusers", (req, res) => {
-    db.query("SELECT * FROM user_detail ", (err, results) => {
-      if (!err) {
-        res.send(results);
-      } else {
-        console.log(err);
-      }
+      res.json({
+        status: "1",
+        payload: results,
+      });
     });
   });
 
-  app.get("/api/get_monthly_data", (req, res) => {
-    var year = "2025";
-    let sql = `(SELECT Date_format(created_date, '%M') AS label, Sum(total_amt) AS y FROM user_order WHERE Year(created_date) = ${year} )`;
-    // var sql1 = 'SELECT * FROM users WHERE email = ? OR phone_number = ?';
-    db.query(sql, (err, result) => {
-      if (err) throw err;
-      res.end(JSON.stringify(result));
+  // List all attendance records for a user by user_id
+  app.get("/api/attendance/user/:user_id", (req, res) => {
+    const user_id = req.params.user_id;
+    const sql = "SELECT id, user_id, username, date, status, ip_address, workingHours, morning_check_in, morning_check_out, evening_check_in, evening_check_out FROM attendance_records WHERE user_id = ? ORDER BY date DESC";
+    db.query(sql, [user_id], (err, results) => {
+      if (err) {
+        helper.ThrowHtmlError(err, res);
+        return;
+      }
+      res.json({
+        status: "1",
+        payload: results,
+      });
     });
   });
 
-  app.delete("/api/admin/delete_user/:id", (req, res) => {
-    db.query(
-      "DELETE FROM user_detail WHERE user_id=?",
-      [req.params.id],
-      (err, rows, fields) => {
-        if (!err) {
-          res.json({
-            status: true,
-            message: "User deleted Successfully",
-          });
-        } else {
-          console.log(err);
-        }
-      }
-    );
-  });
-  app.post("/api/admin/update_profile", (req, res) => {
-    helper.Dlog(req.body);
-    var reqObj = req.body;
+  // Trial status API
+  const dayjs = require("dayjs");
+  app.get("/api/trial-status", (req, res) => {
+    // Prevent caching to avoid 304 responses
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+    try {
+      const startDateStr = process.env.TRIAL_START_DATE || "2025-06-12";
+      const trialDays = parseInt(process.env.TRIAL_DURATION_DAYS || "30", 10);
 
-    // checkAccessToken(req.headers, res, (userObj) => {
-    helper.CheckParameterValid(
-      res,
-      reqObj,
-      ["username", "name", "mobile", "mobile_code", "email"],
-      () => {
-        db.query(
-          "UPDATE `user_detail` SET `username`=?,`name`=?,`mobile`=?,`mobile_code`=?, `email`=?, `modify_date`=NOW() WHERE `user_id` = ? AND `status` = 1",
-          [
-            reqObj.username,
-            reqObj.name,
-            reqObj.mobile,
-            reqObj.mobile_code,
-            reqObj.email,
-            reqObj.user_id,
-          ],
-          (err, result) => {
-            if (err) {
-              helper.ThrowHtmlError(err, res);
-              return;
-            }
+      const now = dayjs();
+      const startDate = dayjs(startDateStr);
+      const expiryDate = startDate.add(trialDays, "day");
 
-            if (result.affectedRows > 0) {
-              db.query(
-                'SELECT `user_id`, `username`, `name`, `email`, `mobile`, `mobile_code`, `password`, `auth_token`, `status`, `created_date` FROM `user_detail` WHERE `user_id` = ? AND `status` = "1" ',
-                [reqObj.user_id],
-                (err, result) => {
-                  if (err) {
-                    helper.ThrowHtmlError(err, res);
-                    return;
-                  }
-
-                  if (result.length > 0) {
-                    res.json({
-                      status: "1",
-                      payload: result[0],
-                      message: msg_success,
-                    });
-                  } else {
-                    res.json({ status: "0", message: msg_invalidUser });
-                  }
-                }
-              );
-            } else {
-              res.json({
-                status: "0",
-                message: msg_fail,
-              });
-            }
-          }
-        );
-      }
-    );
-
-    // })
-  });
-
-  // ---------------------------------------------  Category_add  ----------------------------------------------------------------
-  app.post("/api/admin/product_category_add", (req, res) => {
-    //aman
-    var reqObj = req.body;
-    // checkAccessToken(req.headers, res, (uObj) => {
-    helper.CheckParameterValid(res, reqObj, ["cat_name", "color"], () => {
-      db.query(
-        "INSERT INTO `category_detail`( `cat_name`, `image`, `color`, `created_date`, `modify_date`) VALUES  (?,?,?, NOW(), NOW())",
-        [reqObj.cat_name, reqObj.image, reqObj.color],
-        (err, result) => {
-          if (err) {
-            helper.ThrowHtmlError(err, res);
-            return;
-          }
-
-          if (result) {
-            res.json({
-              status: "1",
-              payload: {
-                cat_id: result.insertId,
-                cat_name: reqObj.cat_name[0],
-                color: reqObj.color[0],
-                image: "",
-              },
-              message: msg_category_added,
-            });
-          } else {
-            res.json({ status: "0", message: msg_fail });
-          }
-        }
-      );
-    });
-    // })
-  });
-
-  app.post("/api/admin/orderupdatestaus", (req, res) => {
-    let orders_id = req.body.orders_id;
-    var data = {
-      orders_id: req.body.orders_id,
-      order_status: req.body.order_status,
-    };
-    // 1: new, 2: order_accept, 3: Out_for_delivery, 4: order_delivered, 5: cancel, 6: order declined
-
-    db.query(
-      "UPDATE user_order SET ? WHERE orders_id = ?",
-      [data, orders_id],
-      function (error, results, fields) {
-        if (error) {
-          res.json({
-            status: false,
-            message: "there are some error with query",
-          });
-        } else {
-          var id = orders_id;
-          db.query(
-            "SELECT * FROM user_order WHERE orders_id = ?",
-            [id],
-            function (error, results, fields) {
-              res.json({
-                status: true,
-                data: results,
-                message: "Orders Status Update  Successfully",
-              });
-            }
-          );
-        }
-      }
-    );
-  });
-
-  app.get("/api/admin/userOrderlistAll", (req, res) => {
-    var reqObj = req.body;
-    console.log(reqObj);
-    db.query(
-      "SELECT * FROM  user_order  ORDER BY orders_id DESC  ",
-      (err, result) => {
-        if (err) throw err;
-        else {
-          res.json({
-            status: true,
-            data: res.end(JSON.stringify(result)),
-            message: "Order placed ",
-          });
-        }
-      }
-    );
-  });
-  // ----------------------------------------------------Product_category_update-----------------------------------------------------
-
-  app.post("/api/admin/product_category_update", (req, res) => {
-    var reqObj = req.body;
-    var condition = "";
-    // checkAccessToken(req.headers, res, (uObj) => {
-    helper.CheckParameterValid(
-      res,
-      reqObj,
-      ["cat_id", "cat_name", "color"],
-      () => {
-        db.query(
-          "UPDATE `category_detail` SET `cat_name`=?," +
-            condition +
-            " `color`=?,`modify_date`=NOW() WHERE `cat_id`= ? AND `status` = ?",
-          [reqObj.cat_name, reqObj.color, reqObj.cat_id, "1"],
-          (err, result) => {
-            if (err) {
-              helper.ThrowHtmlError(err, res);
-              return;
-            }
-
-            if (result) {
-              res.json({
-                status: "1",
-                payload: {
-                  cat_id: parseInt(reqObj.cat_id[0]),
-                  cat_name: reqObj.cat_name[0],
-                  color: reqObj.color[0],
-                  image: "",
-                },
-                message: msg_category_update,
-              });
-            } else {
-              res.json({ status: "0", message: msg_fail });
-            }
-          }
-        );
-      }
-    );
-    // })
-  });
-  // ---------------------------------------------------delete_category---------------------------------------------------
-  app.post("/api/admin/product_category_delete", (req, res) => {
-    helper.Dlog(req.body);
-    var reqObj = req.body;
-
-    helper.CheckParameterValid(res, reqObj, ["cat_id"], () => {
-      // checkAccessToken(req.headers, res, (uObj) => {
-      db.query(
-        "UPDATE `category_detail` SET `status`= ?, `modify_date` = NOW() WHERE `cat_id`= ? ",
-        ["2", reqObj.cat_id],
-        (err, result) => {
-          if (err) {
-            helper.ThrowHtmlError(err, res);
-            return;
-          }
-
-          if (result.affectedRows > 0) {
-            res.json({
-              status: "1",
-              message: msg_category_delete,
-            });
-          } else {
-            res.json({ status: "0", message: msg_fail });
-          }
-
-          // })
-        },
-        "2"
-      );
-    });
-  });
-  // -------------------------------------------------------------------------------------------------------------------
-  app.post("/api/admin/product_category_list", (req, res) => {
-    helper.Dlog(req.body);
-    var reqObj = req.body;
-
-    // checkAccessToken(req.headers, res, (uObj) => {
-    db.query(
-      "SELECT `cat_id`, `cat_name`, `image` , `color` FROM `category_detail` WHERE `status`= ? ",
-      ["1"],
-      (err, result) => {
-        if (err) {
-          helper.ThrowHtmlError(err, res);
-          return;
-        }
-
-        res.json({
-          status: "1",
-          payload: result,
-        });
-        // })
-      },
-      "2"
-    );
-  });
-
-  //////////////////////////////////////////============Product list===========//////////////////////////////////////////////////////////////////
-
-  app.post("/api/admin/product_add", (req, res) => {
-    // checkAccessToken(req.headers, res, (uObj) => {
-    var reqObj = req.body;
-    helper.Dlog("---------- Parameter ----");
-    helper.Dlog(reqObj);
-    helper.CheckParameterValid(
-      res,
-      reqObj,
-      [
-        "name",
-        "detail",
-        "cat_id",
-        "brand_id",
-        "type_id",
-        "unit_name",
-        "unit_value",
-        "nutrition_weight",
-        "price",
-        "stock_quantity",
-        "stock_status",
-      ],
-      () => {
-        db.query(
-          "INSERT INTO `product_detail`(`cat_id`, `brand_id`, `type_id`, `name`, `detail`, `unit_name`, `unit_value`, `nutrition_weight`, `price`, `stock_quantity`, `stock_status`,`created_date`, `modify_date`) VALUES (?,?,?, ?,?,?, ?,?,?,?,?, NOW(), NOW() ) ",
-          [
-            reqObj.cat_id,
-            reqObj.brand_id,
-            reqObj.type_id,
-            reqObj.name,
-            reqObj.detail,
-            reqObj.unit_name,
-            reqObj.unit_value,
-            reqObj.nutrition_weight,
-            reqObj.price,
-            reqObj.stock_quantity,
-            reqObj.stock_status,
-          ],
-          (err, result) => {
-            if (err) {
-              helper.ThrowHtmlError(err, res);
-              return;
-            }
-            if (result) {
-              res.json({
-                status: "1",
-                message: msg_product_added,
-              });
-            } else {
-              res.json({ status: "0", message: msg_fail });
-            }
-          }
-        );
-      }
-    );
-
-    // })
-  });
-
-  app.post("/api/admin/product_update", (req, res) => {
-    helper.Dlog(req.body);
-    var reqObj = req.body;
-
-    helper.CheckParameterValid(
-      res,
-      reqObj,
-      [
-        "prod_id",
-        "name",
-        "detail",
-        "cat_id",
-        "brand_id",
-        "type_id",
-        "unit_name",
-        "unit_value",
-        "nutrition_weight",
-        "price",
-        "stock_quantity",
-        "stock_status",
-      ],
-      () => {
-        // checkAccessToken(req.headers, res, (uObj) => {
-
-        db.query(
-          "UPDATE `product_detail` SET `cat_id`=?,`brand_id`=?,`type_id`=?,`name`=?,`detail`=?,`unit_name`=?,`unit_value`=?,`nutrition_weight`=?,`price`=?, `stock_quantity`=? ,`stock_status`=? , `modify_date`=NOW() WHERE  `prod_id`= ? AND `status` = ? ",
-          [
-            reqObj.cat_id,
-            reqObj.brand_id,
-            reqObj.type_id,
-            reqObj.name,
-            reqObj.detail,
-            reqObj.unit_name,
-            reqObj.unit_value,
-            reqObj.nutrition_weight,
-            reqObj.price,
-            reqObj.stock_quantity,
-            reqObj.stock_status,
-            reqObj.prod_id,
-            "1",
-          ],
-          (err, result) => {
-            if (err) {
-              helper.ThrowHtmlError(err, res);
-              return;
-            }
-
-            if (result.affectedRows > 0) {
-              res.json({
-                status: "1",
-                message: msg_product_update,
-              });
-            } else {
-              res.json({ status: "0", message: msg_fail });
-            }
-          }
-        );
-      },
-      "2"
-    );
-    // })
-  });
-
-  app.delete("/api/admin/product_delete/:id", (req, res) => {
-    helper.Dlog(req.body);
-    var reqObj = req.body;
-    // checkAccessToken(req.headers, res, (uObj) => {
-    // db.query("UPDATE `category_detail` SET `status`= ?, `modify_date` = NOW() WHERE `cat_id`= ? ", [
-    //     "2", reqObj.cat_id,
-    // ], (err, result) => {'DELETE FROM tax WHERE tax_id=?', [ reqObj.prod_id]
-    db.query(
-      "DELETE FROM product_detail WHERE prod_id=?",
-      [req.params.id],
-      (err, result) => {
-        if (err) {
-          helper.ThrowHtmlError(err, res);
-          return;
-        }
-
-        if (result.affectedRows > 0) {
-          res.json({
-            status: "1",
-            message: msg_product_delete,
-          });
-        } else {
-          res.json({ status: "0", message: msg_fail });
-        }
-
-        // })
-      },
-      "2"
-    );
-  });
-  app.post("/api/admin/product_list", (req, res) => {
-    // checkAccessToken(req.headers, res, (uObj) => {
-    db.query(
-      "SELECT * FROM  product_detail   ORDER BY prod_id DESC ",
-      ["1"],
-      (err, result) => {
-        if (err) {
-          helper.ThrowHtmlError(err, res);
-          return;
-        }
-
-        res.json({
-          status: "1",
-          payload: result,
-        });
-        // })
-      },
-      "2"
-    );
-  });
-
-  // ========================================================contact book ===============================///////////////////////////////////////
-
-  app.get("/api/contactbook_list", (req, res) => {
-    db.query(
-      "SELECT * FROM contact_book ORDER BY contact_id DESC ",
-      (err, result) => {
-        if (err) throw err;
-        res.end(JSON.stringify(result));
-      }
-    );
-  });
-
-  app.post("/api/add_contactbook", (req, res) => {
-    var users = {
-      user_id: req.body.user_id,
-      contact_name: req.body.contact_name,
-      contact_number: req.body.contact_number,
-      contact_email: req.body.contact_email,
-      contact_status: req.body.contact_status,
-    };
-    db.query(
-      "SELECT * FROM contact_book WHERE contact_number = ?",
-      [req.body.contact_number],
-      function (error, results, fields) {
-        if (results.length > 0) {
-          res.json({
-            status: false,
-            message: "This Contact Already Saved",
-          });
-        } else {
-          db.query(
-            "INSERT INTO contact_book SET ?",
-            users,
-            function (error, results, fields) {
-              if (error) {
-                res.json({
-                  status: false,
-                  message: error,
-                });
-              } else {
-                var id = results.insertId;
-                db.query(
-                  "SELECT * FROM contact_book WHERE contact_id = ?",
-                  [id],
-                  function (error, results, fields) {
-                    res.json({
-                      status: true,
-                      data: results,
-                      message: "Contact  Create  Successfully",
-                    });
-                  }
-                );
-              }
-            }
-          );
-        }
-      }
-    );
-  });
-
-  app.put("/api/update_contact_list", (req, res) => {
-    let contact_id = req.body.contact_id;
-    var data = {
-      user_id: req.body.user_id,
-      contact_name: req.body.contact_name,
-      contact_number: req.body.contact_number,
-      contact_email: req.body.contact_email,
-      contact_status: req.body.contact_status,
-    };
-
-    db.query(
-      "UPDATE contact_book SET ? WHERE contact_id = ?",
-      [data, contact_id],
-      function (error, results, fields) {
-        if (error) {
-          res.json({
-            status: false,
-            message: "there are some error with query",
-          });
-        } else {
-          var id = contact_id;
-          db.query(
-            "SELECT * FROM contact_book WHERE contact_id = ?",
-            [id],
-            function (error, results, fields) {
-              res.json({
-                status: true,
-                data: results,
-                message: "Conatct   Update  Successfully",
-              });
-            }
-          );
-        }
-      }
-    );
-  });
-
-  app.delete("/api/delete_contact/:id", (req, res) => {
-    db.query(
-      "DELETE FROM contact_book WHERE contact_id=?",
-      [req.params.id],
-      (err, rows, fields) => {
-        if (!err) {
-          res.json({
-            status: true,
-            message: "Contact deleted Successfully",
-          });
-        } else {
-          console.log(err);
-        }
-      }
-    );
-  });
-
-  //==================================tax===========================/////////////////////////////////////////
-
-  app.get("/api/tax_list", (req, res) => {
-    db.query("SELECT * FROM  tax  ORDER BY tax_id DESC ", (err, result) => {
-      if (err) throw err;
-      res.end(JSON.stringify(result));
-    });
-  });
-
-  app.post("/api/add_tax", (req, res) => {
-    var users = {
-      user_id: req.body.user_id,
-      total_tax: req.body.total_tax,
-    };
-    db.query("INSERT INTO tax SET ?", users, function (error, results, fields) {
-      if (error) {
-        res.json({
-          status: false,
-          message: error,
-        });
-      } else {
-        res.json({
-          status: true,
-          data: results,
-          message: "tax Saved Successfully",
+      if (!startDate.isValid() || !expiryDate.isValid()) {
+        return res.status(500).json({
+          error: "Trial date error",
+          message: "Invalid trial start date or duration. Please check configuration.",
         });
       }
-    });
-  });
 
-  app.put("/api/update_tax", (req, res) => {
-    let tax_id = req.body.tax_id;
-    var data = {
-      user_id: req.body.user_id,
-      total_tax: req.body.total_tax,
-    };
-
-    db.query(
-      "UPDATE tax SET ? WHERE tax_id  = ?",
-      [data, tax_id],
-      function (error, results, fields) {
-        if (error) {
-          res.json({
-            status: false,
-            message: "there are some error with query",
-          });
-        } else {
-          var id = tax_id;
-          db.query(
-            "SELECT * FROM tax WHERE tax_id  = ?",
-            [id],
-            function (error, results, fields) {
-              res.json({
-                status: true,
-                data: results,
-                message: "Tax  Update  Successfully",
-              });
-            }
-          );
-        }
-      }
-    );
-  });
-
-  app.delete("/api/delete_tax/:id", (req, res) => {
-    db.query("DELETE FROM tax WHERE tax_id=?", [req.params.id], (err) => {
-      if (!err) {
-        res.json({
-          status: true,
-          message: "Tax Deleted Successfully",
+      if (now.isAfter(expiryDate)) {
+        return res.status(403).json({
+          error: "Trial expired",
+          message: `Trial expired on ${expiryDate.format("YYYY-MM-DD")}. Please contact support.`,
+          expired: true,
+          expiryDate: expiryDate.format("YYYY-MM-DD"),
         });
-      } else {
       }
-    });
+
+      res.status(200).json({
+        success: true,
+        message: "Trial active",
+        expired: false,
+        expiryDate: expiryDate.format("YYYY-MM-DD"),
+        daysLeft: expiryDate.diff(now, "day"),
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Trial check failed", message: error.message });
+    }
   });
-
-  ///////////////////////////---=================================khatabook=============================================////////////////
-
-  app.get("/api/khatabook_list", (req, res) => {
-    db.query("SELECT * FROM khatabook", (err, result) => {
-      if (err) throw err;
-      console.log(result);
-      res.end(JSON.stringify(result));
-    });
-  });
-  app.post("/api/add_khatabook", (req, res) => {
-    console.log(req.body);
-    var users = {
-      user_id: req.body.user_id,
-      customer_name: req.body.customer_name,
-      customer_number: req.body.customer_number,
-      amount: req.body.amount,
-      amount_status: req.body.amount_status,
-      total_amount: req.body.total_amount,
-    };
-
-    db.query(
-      "INSERT INTO  khatabook SET ?",
-      users,
-      function (error, results, fields) {
-        if (error) {
-          res.json({
-            status: false,
-            message: error + "there are some error with query",
-          });
-        } else {
-          var khatanum = results.insertId;
-          console.log(khatanum + "id");
-
-          db.query(
-            "SELECT * FROM khatabook WHERE khatanum = ?",
-            [khatanum],
-            function (error, results, fields) {
-              res.json({
-                status: true,
-                data: results,
-                // fields: fields,
-                message: "Khata book information  insert Successfully",
-              });
-            }
-          );
-        }
-      }
-    );
-  });
-
-  app.post("/api/addamount_khatabook", (req, res) => {
-    var users = {
-      khatanum: req.body.khatanum,
-      amount: req.body.amount,
-      amount_status: req.body.amount_status,
-      total_amount: req.body.total_amount,
-      amount_date: new Date(),
-      description: req.body.description,
-    };
-    db.query(
-      "INSERT INTO  khata_hisab SET ?",
-      users,
-      function (error, results, fields) {
-        if (error) {
-          res.json({
-            status: false,
-            message: error + "there are some error with query",
-          });
-        } else {
-          var khata_id = results.insertId;
-          console.log(khata_id + "id");
-
-          db.query(
-            "SELECT * FROM khata_hisab WHERE khata_id = ?",
-            [khata_id],
-            function (error, results, fields) {
-              res.json({
-                status: true,
-                data: results,
-                // fields: fields,
-                message: "Khata book Amount information  insert Successfully",
-              });
-            }
-          );
-        }
-      }
-    );
-  });
-
-  app.get("/api/khataamount_list/:khatanum", (req, res) => {
-    db.query(
-      "SELECT * FROM khata_hisab WHERE khatanum=?",
-      [req.params.khatanum],
-      (err, results) => {
-        if (!err) {
-          res.send(results);
-        } else {
-          console.log(err);
-        }
-      }
-    );
-  });
-
-  app.delete("/api/delete_khatahisab/:id", (req, res) => {
-    db.query(
-      "DELETE FROM khata_hisab WHERE khatanum=?",
-      [req.params.id],
-      (err) => {
-        if (!err) {
-          res.json({
-            status: true,
-            message: "Khata Clear Successfully",
-          });
-        } else {
-          console.log(err);
-        }
-      }
-    );
-  });
-  app.delete("/api/delete_khatahisabCustomer/:id", (req, res) => {
-    db.query(
-      "DELETE FROM khatabook WHERE khatanum=?",
-      [req.params.id],
-      (err) => {
-        if (!err) {
-          console.log("deleted");
-          res.json({
-            status: true,
-            message: " Khata deleted Successfully",
-          });
-        } else {
-          console.log(err);
-        }
-      }
-    );
-  });
-
-  //////////////////////////////////////////////===========Counter bill page apis====================//////////////////////////////////
-
-  app.get("/api/bill_list", (req, res) => {
-    db.query(
-      "SELECT * FROM  book_bill ORDER BY bill_id DESC  ",
-      (err, result) => {
-        if (err) throw err;
-        res.end(JSON.stringify(result));
-      }
-    );
-  });
-
-  app.get("/api/lasttoken", (req, res) => {
-    db.query(
-      "SELECT   token_no FROM  book_bill ORDER BY bill_id DESC LIMIT 1  ",
-      (err, result) => {
-        if (err) throw err;
-        res.end(JSON.stringify(result));
-      }
-    );
-  });
-  app.get("api/getbill_byTableid/:id", (req, res) => {
-    db.query(
-      "SELECT * FROM book_bill WHERE  table_id=?",
-      [req.params.id],
-      (err, results) => {
-        if (err) throw err;
-        res.end(JSON.stringify(results));
-      }
-    );
-  });
-
-  app.get("api/getbill_byBill/:id", (req, res) => {
-    db.query(
-      "SELECT * FROM book_bill WHERE  bill_id=?",
-      [req.params.id],
-      (err, results) => {
-        if (err) throw err;
-        res.end(JSON.stringify(results));
-      }
-    );
-  });
-
-  app.get("api/today_bill_list/:id", (req, res) => {
-    db.query(
-      "SELECT * FROM  book_bill  and  create_date =" +
-        GETDATE() +
-        " ORDER BY bill_id DESC  ",
-      (err, result) => {
-        if (err) throw err;
-        res.end(JSON.stringify(result));
-      }
-    );
-  });
-  app.post("/api/addbill_data", (req, res) => {
-    var responseJson = JSON.stringify(req.body);
-    var users = {
-      user_id: req.body.user_id,
-      bill_no: req.body.bill_no,
-      bill_order: responseJson,
-      table_id: req.body.table_id,
-      table_name: req.body.table_name,
-      total_bill: req.body.total_bill,
-      bill_status: req.body.bill_status,
-      cutomer_name: req.body.cutomer_name,
-      cutomer_number: req.body.cutomer_number,
-      create_date: req.body.create_date,
-      cutomer_address: req.body.cutomer_address,
-      delivery_charge: req.body.delivery_charge,
-      discount: req.body.discount,
-      status: req.body.status,
-      attender_id: req.body.attender_id,
-      attender_name: req.body.attender_name,
-      token_no: req.body.token_no,
-      payment_type: req.body.payment_type,
-      subtotal_bill: req.body.subtotal_bill,
-      gst_amt: req.body.gst_amt,
-    };
-    var users1 = {
-      user_id: req.body.user_id,
-      contact_name: req.body.cutomer_name,
-      contact_number: req.body.cutomer_number,
-      contact_email: "",
-      contact_status: 1,
-    };
-
-    db.query(
-      "INSERT INTO  book_bill SET ?",
-      users,
-      function (error, results1, fields) {
-        if (error) {
-          res.json({
-            status: false,
-            message: error + "there are some error with query",
-          });
-        } else {
-          db.query(
-            "SELECT * FROM contact_book WHERE contact_number = ?",
-            [req.body.cutomer_number],
-            function (error12, results2, fields) {
-              if (results2.length === 0) {
-                if (
-                  users1.contact_name.length !== 0 &&
-                  users1.contact_number.length !== 0
-                ) {
-                  db.query(
-                    "INSERT INTO contact_book SET ?",
-                    users1,
-                    function (error11, results, fields) {}
-                  );
-                }
-              }
-            }
-          );
-          res.json({
-            status: true,
-            data: results1,
-            message: "Bill Save  Successfully",
-          });
-        }
-      }
-    );
-  });
-  app.put("/api/update_bill_info", (req, res) => {
-    var responseJson = JSON.stringify(req.body);
-    let bill_id = req.body.bill_id;
-    var users = {
-      user_id: req.body.user_id,
-      bill_no: req.body.bill_no,
-      bill_order: responseJson,
-      table_id: req.body.table_id,
-      table_name: req.body.table_name,
-      total_bill: req.body.total_bill,
-      bill_status: req.body.bill_status,
-      cutomer_name: req.body.cutomer_name,
-      cutomer_number: req.body.cutomer_number,
-      create_date: req.body.create_date,
-      delivery_charge: req.body.delivery_charge,
-      discount: req.body.discount,
-      status: req.body.status,
-      attender_id: req.body.attender_id,
-      attender_name: req.body.attender_name,
-      token_no: req.body.token_no,
-      payment_type: req.body.payment_type,
-      subtotal_bill: req.body.subtotal_bill,
-      gst_amt: req.body.gst_amt,
-    };
-
-    db.query(
-      "UPDATE  book_bill SET ? WHERE bill_id = ?",
-      [users, bill_id],
-      function (error, results, fields) {
-        if (error) {
-          res.json({
-            status: false,
-            message: "there are some error with query",
-          });
-        } else {
-          db.query(
-            "SELECT * FROM  book_bill WHERE bill_id = ?",
-            [bill_id],
-            function (error, results, fields) {
-              res.json({
-                status: true,
-                data: results,
-                message: "Bill  Update  Successfully",
-              });
-            }
-          );
-        }
-      }
-    );
-  });
-
-  app.put("/api/complete_order", (req, res) => {
-    let bill_no = req.body.bill_no;
-    var data = {
-      bill_status: req.body.bill_status,
-      table_name: req.body.table_name,
-      table_id: req.body.table_id,
-    };
-    db.query(
-      "UPDATE  book_bill SET ? WHERE bill_no = ?",
-      [data, bill_no],
-      function (error, results, fields) {
-        if (error) {
-          res.json({
-            status: false,
-            message: "there are some error with query",
-          });
-        } else {
-          res.json({
-            status: true,
-            data: results,
-            message: "Compete Order  Update  Successfully",
-          });
-        }
-      }
-    );
-  });
-
-  app.delete("/api/delete_bill/:id", (req, res) => {
-    db.query(
-      "DELETE FROM book_bill WHERE bill_id=?",
-      [req.params.id],
-      function (error, results, fields) {
-        if (!error) {
-          res.json({
-            status: true,
-            message: "Bill Deleted Successfully",
-          });
-        } else {
-          console.log(error);
-        }
-      }
-    );
-  });
-
-  //-----------------------------------------------------Dashborad-------------------------------------------------------------------------
-
-  app.get("/api/getallcount", (req, res) => {
-    var userid = 1;
-    db.query(
-      "SELECT count(*) as total  FROM  book_bill  where user_id = " +
-        userid +
-        "",
-      (err, result1) => {
-        db.query(
-          "SELECT count(*) as total  FROM contact_book	 where user_id = " +
-            userid +
-            "",
-          (err, result2) => {
-            db.query(
-              "SELECT count(*) as total  FROM restro_table  where user_id = " +
-                userid +
-                "",
-              (err, result3) => {
-                if (err) throw err;
-                var results = [];
-                results.push({
-                  billCount: result1[0].total,
-                  customercount: result2[0].total,
-                });
-                res.json({
-                  status: true,
-                  data: results,
-                  message: "Total",
-                });
-              }
-            );
-          }
-        );
-      }
-    );
-  });
-
-  // =========================================================================================================================================
-
-  
 };

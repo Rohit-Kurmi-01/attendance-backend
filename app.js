@@ -15,7 +15,8 @@ var server = require('http').createServer(app);
 var io = require('socket.io')(server, {
   cors: {
     // origin: "https://ondoorveggis.vercel.app",
-      origin: "http://localhost:4200",
+      // origin: "http://localhost:8080",
+      origins:  "http://192.168.1.24:8080",
     methods: ["GET", "POST"]
   }
 })
@@ -33,31 +34,24 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// CORS setup to allow both localhost and LAN IP
+const allowedOrigins = ["http://localhost:8080", "http://192.168.1.24:8080", "http://localhost:3000"];
+const corsOptions = {
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+};
+app.use(cors(corsOptions));
+
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
-
-const corsOptions = {
-  origin: "http://localhost:4200",
-}
-  // const corsOptions = {
-  //       origin: 'https://ondoorveggis.vercel.app', // Replace with your allowed origins
-  //   };
-
-//     const corsOpts = {
-//   origin: '*',
-
-//   methods: [
-//     'GET',
-//     'POST',
-//   ],
-
-//   allowedHeaders: [
-//     'Content-Type',
-//   ],
-// };
-
-// app.use(cors(corsOpts));
-app.use(cors(corsOptions));
 
 // import express inside dynamic added.
 fs.readdirSync('./controllers').forEach((file) => {

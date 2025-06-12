@@ -4,7 +4,7 @@
         "host":"localhost",
         "user":"root",
         "password":"",
-        "database":"elite_hospital",
+        "database":"attendance_s",
         "multipleStatements": true,
         "timezone":"utc+5:30",
         "charset":"utf8mb4"
