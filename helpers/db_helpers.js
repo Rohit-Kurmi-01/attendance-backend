@@ -1,4 +1,4 @@
-var mysql = require('mysql2')
+var mysql = require('mysql')
 var config = require('config')
 var dbConfig = {
     host: process.env.DB_HOST,
