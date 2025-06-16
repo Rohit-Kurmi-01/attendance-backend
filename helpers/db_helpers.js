@@ -12,7 +12,7 @@ var dbConfig = {
     queueLimit: 0
     
 };
-var db = mysql.createPool(dbConfig);
+var db = mysql.createConnection(dbConfig);
 var helper = require('./helpers')
 
 if(config.has('optionalFeature.detail')) {
@@ -25,7 +25,7 @@ reconnect(db, () => {});
 function reconnect(connection, callback) {
     helper.Dlog("\n New connection tentative ... (" + helper.serverYYYYMMDDHHmmss() + ")" )
 
-    connection = mysql.createPool(dbConfig);
+    connection = mysql.createConnection(dbConfig);
         // connection = mysql.createConnection({
         //     host: process.env.DB_HOST, 
         //     user: process.env.DB_USERNAME, 
