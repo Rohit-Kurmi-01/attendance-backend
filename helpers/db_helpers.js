@@ -8,6 +8,8 @@ var dbConfig = {
     multipleStatements: true,
     timezone: "+05:30",
     charset: "utf8mb4",
+    connectionLimit: 20,
+    queueLimit: 0
     
 };
 var db = mysql.createConnection(dbConfig);
