@@ -417,7 +417,7 @@ module.exports.controller = (app, io, socket_list) => {
     res.setHeader("Surrogate-Control", "no-store");
     try {
       const startDateStr = process.env.TRIAL_START_DATE || "2025-06-12";
-      const trialDays = parseInt(process.env.TRIAL_DURATION_DAYS || "30", 10);
+      const trialDays = parseInt(process.env.TRIAL_DURATION_DAYS || "60", 10);
 
       const now = dayjs();
       const startDate = dayjs(startDateStr);
@@ -449,5 +449,119 @@ module.exports.controller = (app, io, socket_list) => {
     } catch (error) {
       res.status(500).json({ error: "Trial check failed", message: error.message });
     }
+  });
+
+// ========================== Device Fingerprints APIs =============================
+
+  // Add a new device fingerprint
+  app.post("/api/device-fingerprint/add", (req, res) => {
+    const reqObj = req.body;
+    helper.CheckParameterValid(res, reqObj, [
+      "user_id", "fingerprints", "created_at", "status"
+    ], () => {
+      db.query(
+        "INSERT INTO device_fingerprints (user_id, fingerprints, created_at, status) VALUES (?, ?, ?, ?)",
+        [
+          reqObj.user_id,
+          reqObj.fingerprints,
+          reqObj.created_at,
+          reqObj.status
+        ],
+        (err, result) => {
+          if (err) {
+            helper.ThrowHtmlError(err, res);
+            return;
+          }
+          res.json({
+            status: "1",
+            message: "Device fingerprint added successfully",
+            device_id: result.insertId,
+          });
+        }
+      );
+    });
+  });
+
+  // Update a device fingerprint by device_id
+  app.put("/api/device-fingerprint/update/:device_id", (req, res) => {
+    const reqObj = req.body;
+    const device_id = req.params.device_id;
+    helper.CheckParameterValid(res, reqObj, [
+      "user_id", "fingerprints", "created_at", "status"
+    ], () => {
+      db.query(
+        "UPDATE device_fingerprints SET user_id=?, fingerprints=?, created_at=?, status=? WHERE device_id=?",
+        [
+          reqObj.user_id,
+          reqObj.fingerprints,
+          reqObj.created_at,
+          reqObj.status,
+          device_id
+        ],
+        (err, result) => {
+          if (err) {
+            helper.ThrowHtmlError(err, res);
+            return;
+          }
+          if (result.affectedRows > 0) {
+            res.json({
+              status: "1",
+              message: "Device fingerprint updated successfully",
+            });
+          } else {
+            res.json({ status: "0", message: "Device fingerprint not found" });
+          }
+        }
+      );
+    });
+  });
+
+  // Delete a device fingerprint by device_id
+  app.delete("/api/device-fingerprint/delete/:device_id", (req, res) => {
+    const device_id = req.params.device_id;
+    db.query(
+      "DELETE FROM device_fingerprints WHERE device_id=?",
+      [device_id],
+      (err, result) => {
+        if (err) {
+          helper.ThrowHtmlError(err, res);
+          return;
+        }
+        if (result.affectedRows > 0) {
+          res.json({
+            status: "1",
+            message: "Device fingerprint deleted successfully",
+          });
+        } else {
+          res.json({ status: "0", message: "Device fingerprint not found" });
+        }
+      }
+    );
+  });
+
+  // Get all device fingerprints (optionally filter by user_id and/or status)
+  app.get("/api/device-fingerprint/list", (req, res) => {
+    const { user_id, status } = req.query;
+    let sql = "SELECT device_id, user_id, fingerprints, created_at, status FROM device_fingerprints WHERE 1=1";
+    let params = [];
+    if (user_id) {
+      sql += " AND user_id = ?";
+      params.push(user_id);
+    }
+    if (status) {
+      sql += " AND status = ?";
+      params.push(status);
+    }
+    sql += " ORDER BY device_id DESC";
+    db.query(sql, params, (err, results) => {
+      if (err) {
+        helper.ThrowHtmlError(err, res);
+        return;
+      }
+      res.json({
+        status: "1",
+        payload: results,
+      });
+    });
   });
 };

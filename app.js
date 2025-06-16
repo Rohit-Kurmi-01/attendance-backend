@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
@@ -6,6 +8,7 @@ var logger = require('morgan');
 
 const cors = require('cors');
 var fs = require('fs');
+
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
@@ -16,11 +19,11 @@ var io = require('socket.io')(server, {
   cors: {
     // origin: "https://ondoorveggis.vercel.app",
       // origin: "http://localhost:8080",
-      origins:  "http://192.168.1.24:8080",
+      origins:  "https://attendance.meditreediagnostics.in",
     methods: ["GET", "POST"]
   }
 })
-var serverPort = 3001;
+var serverPort = process.env.DB_HOST || 3001;
 
 var user_socket_connect_list = [];
 
@@ -35,7 +38,12 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // CORS setup to allow both localhost and LAN IP
-const allowedOrigins = ["http://localhost:8080", "http://192.168.1.24:8080", "http://localhost:3000"];
+const allowedOrigins = [
+  "http://localhost:8080",
+  "http://192.168.1.24:8080",
+  "http://localhost:3000",
+  "https://attendance.meditreediagnostics.in"
+];
 const corsOptions = {
   origin: function (origin, callback) {
     // allow requests with no origin (like mobile apps, curl, etc.)
