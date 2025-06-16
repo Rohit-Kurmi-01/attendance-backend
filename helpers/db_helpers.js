@@ -1,6 +1,15 @@
 var mysql = require('mysql2')
 var config = require('config')
-var dbConfig = config.get('dbConfig')
+var dbConfig = {
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    multipleStatements: true,
+    timezone: "+05:30",
+    charset: "utf8mb4",
+    
+};
 var db = mysql.createConnection(dbConfig);
 var helper = require('./helpers')
 
